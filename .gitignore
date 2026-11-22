@@ -8,3 +8,4 @@ deployments/hardhat.json
 .env
 deployments/localhost.json
 datos/llama_pools.json
+deployments/*-estado.json

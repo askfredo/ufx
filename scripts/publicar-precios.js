@@ -11,8 +11,10 @@ const num = (x) => Number(ethers.formatUnits(x, 18));
 const MOVIMIENTO = { tBONO: [0.0001, 0.001], tSPY: [0.0004, 0.01], tORO: [0.0003, 0.008], tBTC: [0.001, 0.03] };
 
 async function main() {
-  const archivo = `deployments/${network.name}.json`;
-  const d = JSON.parse(fs.readFileSync(archivo, "utf8"));
+  // Direcciones en deployments/<red>.json (en git); precios e IPC del día en <red>-estado.json (fuera de git).
+  const d = JSON.parse(fs.readFileSync(`deployments/${network.name}.json`, "utf8"));
+  const archivo = `deployments/${network.name}-estado.json`;
+  if (fs.existsSync(archivo)) Object.assign(d, JSON.parse(fs.readFileSync(archivo, "utf8")));
   const oraculo = await ethers.getContractAt("OraculoPrueba", d.oraculo);
   const ufx = await ethers.getContractAt("UFIndexada", d.ufx);
   const ahora = Date.now() / 1000;
@@ -29,7 +31,7 @@ async function main() {
   await (await ufx.mantener()).wait();
 
   d.ultimaPublicacion = ahora;
-  fs.writeFileSync(archivo, JSON.stringify(d, null, 2));
+  fs.writeFileSync(archivo, JSON.stringify({ precios: d.precios, ipc: d.ipc, tbill: d.tbill, ultimaPublicacion: d.ultimaPublicacion }, null, 2));
   console.log(`[${network.name}] precios: ${Object.entries(d.precios).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(" · ")} · IPC ${d.ipc.toFixed(4)}`);
   console.log(`1 UFX = $${num(await ufx.precioUnidad()).toFixed(4)} · respaldo ${(Number(await ufx.ratio()) / 100).toFixed(0)}% · colchón $${num(await ufx.colchon()).toFixed(2)}`);
 }

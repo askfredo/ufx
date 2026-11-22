@@ -1,0 +1,9 @@
+[Unit]
+Description=UFX: publicar precios de prueba y mantener el protocolo (Base Sepolia)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Work/uf-global
+Environment=PATH=%h/.local/share/mise/shims:/usr/local/bin:/usr/bin
+ExecStart=%h/.local/share/mise/shims/npx hardhat run scripts/publicar-precios.js --network baseSepolia
