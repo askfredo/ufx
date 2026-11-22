@@ -32,9 +32,9 @@ Chain ID 84532 · RPC `https://sepolia.base.org` · explorer `https://sepolia.ba
 
 | Contract | Address |
 |---|---|
-| UFX (`UFIndexada`) | `0xfE752E44B984475bA37F805071e30029360e5a77` |
-| UFXC (risk pool token) | `0xD79506A8c087FEe63b1a4BE4F29CD53ebacF7d3B` |
-| Test USD (`tUSDC`) | `0x44F096924Cb5Ffa1173ac7D1660592c10317618f` |
+| UFX (`UFIndexada`) | `0xF94BBe1f76cDCC5D910bdaBfd650113c55e0595B` |
+| UFXC (risk pool token) | `0x4aAEC237EDF191cd4674A8431821aC84e4426a0f` |
+| Test USD (`tUSDC`) | `0x7b9CE77f57A3E5c9e14F69F7cCB7B02694B1a3C8` |
 
 Test USD can be minted freely for testing: `tUSDC.regalar(yourAddress, amount)`.
 
@@ -75,9 +75,13 @@ pays a small tip in UFXC to the caller.
 - The risk pool cannot withdraw if that would push backing below 120%.
 - Founder fee: 0.1% per year of the reserve, starting the second year, **paid by the risk pool, never by UFX holders**.
   Founder address (public): `0x00C2376917cfd246f9DF404F9c59c9bF1EF163Dd`.
+- **CPI circuit breaker:** if the inflation feed is missing, stale, or jumps outside +2% / -1% per month,
+  it is ignored and UFX keeps growing on the T-bill leg. Check `UFX.ipcAceptado()`.
+- **Defensive mode:** if backing falls below 130%, the basket shifts to defensive weights (65% bonds, 30% gold,
+  5% stocks) until backing recovers to 140%. Check `UFX.modoDefensivo()`. UFX holders are unaffected either way.
 - Contracts have no admin keys over funds; parameters are fixed at deployment.
 
 ## Source and data
 
-Code, tests (31 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
+Code, tests (38 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
 prices are in the repository. Backtest results are simulations, not guarantees.

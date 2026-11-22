@@ -23,6 +23,11 @@ import "./Canasta.sol"; // TokenPrueba, OraculoPrueba, MercadoPrueba
 //  - MANTENCIÓN: cualquiera (un bot) puede llamar `mantener()` una vez al día: actualiza el
 //    precio, rebalancea cuando toca y cobra una propina chica (`recompensaUsd`) en UFXC.
 //  - Seguridad: solo se crean UFX si el respaldo queda ≥ 120%. Salir siempre se puede.
+//  - CORTACIRCUITO DEL IPC: si el dato de inflación no llega o salta fuera de un rango razonable
+//    (más de +2% o -1% por mes), se ignora y UFX sigue creciendo con la pata de T-bills.
+//    El contrato nunca se traba por el oráculo de inflación.
+//  - MODO DEFENSIVO: si el respaldo cae bajo `umbralDefensivoBps`, la canasta pasa a pesos
+//    defensivos (más bonos y oro); vuelve a los normales cuando el respaldo sube 10 puntos sobre el umbral.
 // ════════════════════════════════════════════════════════════════════
 
 /// Partes del colchón como token transable. Solo el contrato UFX las crea y las quema.
@@ -64,6 +69,7 @@ contract UFIndexada is ERC20, ReentrancyGuard {
         uint256 multaSalidaBps;  // salida del colchón antes de un año (100 = 1%)
         uint256 recompensaUsd;   // propina por `mantener()` (en dólares, 18 decimales)
         uint256 rebalanceoCada;  // segundos entre rebalanceos automáticos
+        uint256 umbralDefensivoBps; // respaldo bajo el cual se usan los pesos defensivos (0 = apagado)
     }
 
     /// Clave del oráculo para el índice de precios (1e18 = $1 al inicio).
@@ -73,6 +79,9 @@ contract UFIndexada is ERC20, ReentrancyGuard {
     uint256 public constant RATIO_MIN = 12000; // 120%
     uint256 public constant DURACION_ANIO = 31557600; // 365,25 días
     uint256 public constant MANTENCION_CADA = 1 days;
+    uint256 public constant IPC_SUBIDA_MAX_MES_BPS = 200; // +2% por mes como máximo
+    uint256 public constant IPC_BAJADA_MAX_MES_BPS = 100; // -1% por mes como máximo
+    uint256 public constant SALIDA_DEFENSIVO_BPS = 1000;  // sale del modo defensivo 10 puntos sobre el umbral
 
     TokenPrueba public immutable dolar;
     MercadoPrueba public immutable mercado;
@@ -81,6 +90,9 @@ contract UFIndexada is ERC20, ReentrancyGuard {
 
     TokenPrueba[] public activos;
     uint256[] public pesosBps;
+    uint256[] public pesosDefensivosBps;
+    uint256 public immutable umbralDefensivoBps;
+    bool public modoDefensivo;
 
     uint256 public immutable tasaFijaBps;
     bool public immutable pisoStable;
@@ -103,6 +115,8 @@ contract UFIndexada is ERC20, ReentrancyGuard {
     uint256 public precioGuardado = 1e18;
     uint256 public ipcGuardado;
     uint256 public tGuardado;
+    uint256 public tIpcCambio;   // cuándo cambió por última vez el IPC aceptado
+    uint256 public tbillGuardado; // última tasa de T-bills válida
 
     event Acunado(address indexed quien, address indexed receptor, uint256 dolares, uint256 monedas);
     event Quemado(address indexed quien, address indexed receptor, uint256 monedas, uint256 dolares);
@@ -113,6 +127,8 @@ contract UFIndexada is ERC20, ReentrancyGuard {
     event ComisionFundador(uint256 dolares, uint256 partes);
     event FundadorCambiado(address nuevo);
     event UFXAbierta(uint256 colchon);
+    event IPCIgnorado(uint256 ipcRecibido, bool sinDato); // el cortacircuito descartó el dato
+    event ModoDefensivo(bool activo, uint256 ratio);
 
     /// Antes de cualquier movimiento: guardar el precio de hoy y cobrar la comisión que toque.
     modifier alDia() {
@@ -127,12 +143,20 @@ contract UFIndexada is ERC20, ReentrancyGuard {
         OraculoPrueba _oraculo,
         TokenPrueba[] memory _activos,
         uint256[] memory _pesos,
+        uint256[] memory _pesosDefensivos,
         Config memory c
     ) ERC20("UF Global", "UFX") {
         require(_activos.length == _pesos.length, "largos distintos");
         uint256 suma = 0;
         for (uint256 i = 0; i < _pesos.length; i++) suma += _pesos[i];
         require(suma == 10000, "los pesos deben sumar 100%");
+        if (c.umbralDefensivoBps > 0) {
+            require(_pesosDefensivos.length == _pesos.length, "pesos defensivos: largo distinto");
+            suma = 0;
+            for (uint256 i = 0; i < _pesosDefensivos.length; i++) suma += _pesosDefensivos[i];
+            require(suma == 10000, "pesos defensivos deben sumar 100%");
+            pesosDefensivosBps = _pesosDefensivos;
+        }
         require(c.tasaFijaBps <= 1000, "tasa fija > 10%");
         require(c.comisionBps <= 100, "comision > 1%");
         require(c.cuotaEntradaBps <= 1000 && c.multaSalidaBps <= 1000, "cuota o multa > 10%");
@@ -155,6 +179,7 @@ contract UFIndexada is ERC20, ReentrancyGuard {
         multaSalidaBps = c.multaSalidaBps;
         recompensaUsd = c.recompensaUsd;
         rebalanceoCada = c.rebalanceoCada;
+        umbralDefensivoBps = c.umbralDefensivoBps;
         ultimoRebalanceo = block.timestamp;
 
         IERC20(address(dolar)).forceApprove(address(_mercado), type(uint256).max);
@@ -165,7 +190,12 @@ contract UFIndexada is ERC20, ReentrancyGuard {
 
     /// Dólares que vale 1 UFX. Parte en $1 y nunca baja.
     function precioUnidad() public view returns (uint256 p) {
-        (p, ) = _precioAhora();
+        (p, , , ) = _precioAhora();
+    }
+
+    /// Si hoy el dato de inflación se está usando (true) o el cortacircuito lo descarta (false).
+    function ipcAceptado() external view returns (bool aceptado) {
+        (, , , aceptado) = _precioAhora();
     }
 
     /// Dólares que valen las UFX de `a` hoy.
@@ -326,7 +356,8 @@ contract UFIndexada is ERC20, ReentrancyGuard {
     /// Para bots: actualiza el precio, rebalancea si ya toca y paga una propina en UFXC
     /// (como máximo una vez al día). Cualquiera puede llamarlo.
     function mantener() external nonReentrant alDia returns (uint256 recompensa) {
-        if (block.timestamp >= ultimoRebalanceo + rebalanceoCada) _rebalancear();
+        bool cambio = _revisarModoDefensivo();
+        if (cambio || block.timestamp >= ultimoRebalanceo + rebalanceoCada) _rebalancear();
         if (block.timestamp >= ultimaMantencion + MANTENCION_CADA) {
             ultimaMantencion = block.timestamp;
             recompensa = _pagarEnPartes(msg.sender, recompensaUsd);
@@ -341,22 +372,75 @@ contract UFIndexada is ERC20, ReentrancyGuard {
 
     // ─────────────────────────── interno ───────────────────────────
 
+    /// Lee el oráculo sin trabarse: si no hay dato (o está viejo) devuelve ok = false.
+    function _leer(address clave) internal view returns (bool ok, uint256 v) {
+        try oraculo.precio(clave) returns (uint256 x) {
+            return (true, x);
+        } catch {
+            return (false, 0);
+        }
+    }
+
+    /// ¿El IPC nuevo está dentro del rango razonable desde el último cambio aceptado?
+    /// La ventana mínima es de un mes, para que un dato mensual normal siempre pase.
+    function _ipcRazonable(uint256 ipc) internal view returns (bool) {
+        uint256 ventana = block.timestamp - tIpcCambio;
+        if (ventana < 30 days) ventana = 30 days;
+        uint256 subida = (ipcGuardado * IPC_SUBIDA_MAX_MES_BPS * ventana) / (10000 * 30 days);
+        uint256 bajada = (ipcGuardado * IPC_BAJADA_MAX_MES_BPS * ventana) / (10000 * 30 days);
+        if (bajada > ipcGuardado / 2) bajada = ipcGuardado / 2;
+        return ipc <= ipcGuardado + subida && ipc + bajada >= ipcGuardado;
+    }
+
     /// Precio guardado × lo que haya que sumarle desde la última actualización.
-    function _precioAhora() internal view returns (uint256 p, uint256 ipc) {
-        ipc = oraculo.precio(IPC);
-        if (tGuardado == 0) return (precioGuardado, ipc);
+    /// Sube lo mayor entre la pata de inflación (si el IPC es confiable) y la de T-bills.
+    function _precioAhora() internal view returns (uint256 p, uint256 ipcUsado, uint256 tbillUsado, bool ipcOk) {
+        (bool hayIpc, uint256 ipc) = _leer(IPC);
+        (bool hayTbill, uint256 tbill) = _leer(TBILL);
+        tbillUsado = hayTbill ? tbill : tbillGuardado;
+        if (tGuardado == 0) {
+            require(hayIpc, "sin IPC inicial");
+            return (precioGuardado, ipc, tbillUsado, true);
+        }
         uint256 dt = block.timestamp - tGuardado;
-        uint256 crecer = (ipc * (1e18 + (tasaFijaBps * 1e14 * dt) / DURACION_ANIO)) / ipcGuardado;
+        uint256 crecer = 1e18; // sin IPC confiable, la pata de inflación no suma nada
+        ipcUsado = ipcGuardado;
+        ipcOk = hayIpc && _ipcRazonable(ipc);
+        if (ipcOk) {
+            crecer = (ipc * (1e18 + (tasaFijaBps * 1e14 * dt) / DURACION_ANIO)) / ipcGuardado;
+            ipcUsado = ipc;
+        }
         if (pisoStable) {
-            uint256 porStable = 1e18 + ((oraculo.precio(TBILL) + margenBps * 1e14) * dt) / DURACION_ANIO;
+            uint256 porStable = 1e18 + ((tbillUsado + margenBps * 1e14) * dt) / DURACION_ANIO;
             if (porStable > crecer) crecer = porStable;
         }
+        if (crecer < 1e18) crecer = 1e18; // nunca baja
         p = (precioGuardado * crecer) / 1e18;
     }
 
     function _actualizarPrecio() internal {
-        (uint256 p, uint256 ipc) = _precioAhora();
-        (precioGuardado, ipcGuardado, tGuardado) = (p, ipc, block.timestamp);
+        (uint256 p, uint256 ipcUsado, uint256 tbillUsado, bool ipcOk) = _precioAhora();
+        if (!ipcOk && tGuardado != 0) {
+            (bool hayIpc, uint256 ipc) = _leer(IPC);
+            emit IPCIgnorado(ipc, !hayIpc);
+        }
+        if (ipcUsado != ipcGuardado) tIpcCambio = block.timestamp;
+        (precioGuardado, ipcGuardado, tbillGuardado, tGuardado) = (p, ipcUsado, tbillUsado, block.timestamp);
+    }
+
+    /// Entra al modo defensivo bajo el umbral y sale 10 puntos más arriba. Devuelve true si cambió.
+    function _revisarModoDefensivo() internal returns (bool) {
+        if (umbralDefensivoBps == 0 || totalSupply() == 0) return false;
+        uint256 r = ratio();
+        bool deberia = modoDefensivo ? r < umbralDefensivoBps + SALIDA_DEFENSIVO_BPS : r < umbralDefensivoBps;
+        if (deberia == modoDefensivo) return false;
+        modoDefensivo = deberia;
+        emit ModoDefensivo(deberia, r);
+        return true;
+    }
+
+    function _peso(uint256 i) internal view returns (uint256) {
+        return modoDefensivo ? pesosDefensivosBps[i] : pesosBps[i];
     }
 
     /// Comisión del fundador acumulada desde la última vez. El primer año después de abrir es gratis.
@@ -387,13 +471,13 @@ contract UFIndexada is ERC20, ReentrancyGuard {
         for (uint256 i = 0; i < activos.length; i++) {
             uint256 p = oraculo.precio(address(activos[i]));
             uint256 valor = (activos[i].balanceOf(address(this)) * p) / 1e18;
-            uint256 objetivo = (total * pesosBps[i]) / 10000;
+            uint256 objetivo = (total * _peso(i)) / 10000;
             if (valor > objetivo) mercado.vender(activos[i], ((valor - objetivo) * 1e18) / p);
         }
         for (uint256 i = 0; i < activos.length; i++) {
             uint256 p = oraculo.precio(address(activos[i]));
             uint256 valor = (activos[i].balanceOf(address(this)) * p) / 1e18;
-            uint256 objetivo = (total * pesosBps[i]) / 10000;
+            uint256 objetivo = (total * _peso(i)) / 10000;
             if (valor < objetivo) {
                 uint256 falta = objetivo - valor;
                 uint256 caja = dolar.balanceOf(address(this));
@@ -405,7 +489,7 @@ contract UFIndexada is ERC20, ReentrancyGuard {
 
     function _comprarCanasta(uint256 usd) internal {
         for (uint256 i = 0; i < activos.length; i++) {
-            mercado.comprar(activos[i], (usd * pesosBps[i]) / 10000);
+            mercado.comprar(activos[i], (usd * _peso(i)) / 10000);
         }
     }
 

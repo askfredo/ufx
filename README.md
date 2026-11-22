@@ -22,7 +22,9 @@ Una regla clara, sin KYC ni intermediarios: algo que un agente puede programar y
 6. **Seguridad:** solo se crean UFX si el respaldo queda ≥ 120%; el colchón no puede retirarse si lo deja bajo 120%.
 7. **Llegar primero conviene:** después del arranque, entrar al colchón cuesta 2% (queda para los que ya estaban) y salir antes de un año cuesta 1%.
 8. **El colchón es un token (UFXC):** se puede transferir y vender en un exchange. Las partes llevan su antigüedad, así que la multa no se esquiva pasándolas a otra dirección.
-9. **Se mantiene solo:** cualquier bot puede llamar `mantener()` una vez al día (actualiza el precio, rebalancea cuando toca) y cobra una propina en UFXC.
+9. **Cortacircuito del IPC:** si el dato de inflación falta, está viejo o salta más de +2% / -1% en un mes, se ignora y UFX sigue con la pata de T-bills. El contrato nunca se traba por el oráculo de inflación.
+10. **Modo defensivo:** con el respaldo bajo 130%, la canasta pasa a pesos defensivos (más bonos y oro) hasta que se recupera a 140%. En el peor caso (lanzar en dic-2007) sube el respaldo mínimo de 87% a 103%.
+11. **Se mantiene solo:** cualquier bot puede llamar `mantener()` una vez al día (actualiza el precio, rebalancea cuando toca) y cobra una propina en UFXC.
 
 ## Para agentes
 
@@ -45,7 +47,7 @@ contracts/
   UFIndexada.sol      UFX (precio indexado, colchón, arranque, comisión, mantención) + ParteColchon (token UFXC)
   Canasta.sol         Piezas de prueba (TokenPrueba, OraculoPrueba, MercadoPrueba) y la v1 MonedaCanasta
 test/
-  UFIndexada.test.js  31 pruebas, incluida una al azar de 400 operaciones
+  UFIndexada.test.js  38 pruebas, incluida una al azar de 400 operaciones
 scripts/
   desplegar-local.js  Despliega todo con tokens de mentira en un nodo local
   agente-demo.js      Un agente de IA manejando su tesorería con UFX + un bot de mantención
@@ -87,6 +89,7 @@ Para los datos: `python3 -m venv .venv && .venv/bin/pip install yfinance pandas`
 | `BTC` | % de bitcoin en la canasta (requiere `INICIO=2014-12`) | 0 |
 | `INICIO` | primer mes del backtest | 2003-12 |
 | `RECOMPENSA`, `REBALANCEO_DIAS` | propina por `mantener()` / días entre rebalanceos | 0, 365 |
+| `DEFENSIVO` | respaldo (%) bajo el cual se usan pesos defensivos (0 = apagado) | 130 |
 
 Los datos mensuales usan aproximaciones (con dividendos): acciones globales = 60% SPY + 40% EFA, bonos = AGG,
 oro = GC=F, inmuebles = IYR, energía = CL=F, materias primas = S&P GSCI, bitcoin = BTC-USD, IPC = CPIAUCSL
@@ -95,7 +98,7 @@ oro = GC=F, inmuebles = IYR, energía = CL=F, materias primas = S&P GSCI, bitcoi
 ## Resultados (simulados)
 
 - **Backtest 2004–2026:** el ahorrador gana +2,6% real/año (5,3% nominal) contra 1,8% nominal de una stablecoin con rendimiento; el colchón gana ~7% real/año; respaldo mínimo 114% (feb-2009).
-- **Peor caso** (lanzar en dic-2007): con 40% de colchón inicial el respaldo baja a 87% durante 7 meses; con 80% no baja de 100%.
+- **Peor caso** (lanzar en dic-2007): sin modo defensivo el respaldo baja a 87% durante 7 meses; con modo defensivo el mínimo es 103% y nunca baja de 100%.
 - **2022–2026 contra productos reales:** ver `datos/comparacion-rendimientos.csv`.
 
 ## Lo que falta antes de usarlo con plata real
@@ -122,3 +125,8 @@ frecuentes con respuestas.
 `~/.ufx-testnet/billetera.json` (permisos 600, fuera del proyecto) y la configura en Hardhat sin mostrar la clave.
 `node scripts/ver-billetera.js` muestra las 12 palabras para anotarlas (ejecútalo en tu propia terminal).
 `npm run saldo:base-sepolia` muestra el saldo.
+
+## Historial de despliegues (Base Sepolia)
+
+- **v2** (actual): cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia.json`.
+- **v1**: primera versión. Direcciones en `deployments/baseSepolia-v1.json` (ya no se publican precios; quedó detenida).

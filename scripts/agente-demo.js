@@ -21,10 +21,10 @@ async function main() {
   for (const [n, s] of canasta) activos.push(await T.deploy(n, s));
   const oraculo = await (await ethers.getContractFactory("OraculoPrueba")).deploy();
   const mercado = await (await ethers.getContractFactory("MercadoPrueba")).deploy(oraculo, dolar);
-  const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), {
+  const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), [], {
     tasaFijaBps: 200, pisoStable: true, margenBps: 50, fundador: dueno.address, comisionBps: 10,
     metaArranque: e18(1000), cuotaEntradaBps: 200, multaSalidaBps: 100,
-    recompensaUsd: e18(0.05), rebalanceoCada: 30 * DIA,
+    recompensaUsd: e18(0.05), rebalanceoCada: 30 * DIA, umbralDefensivoBps: 0,
   });
   const ufxc = await ethers.getContractAt("ParteColchon", await ufx.partes());
 

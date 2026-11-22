@@ -36,6 +36,14 @@ function leerHistorico(canasta, inicio = process.env.INICIO) {
   ));
 }
 
+// Pesos defensivos (modo defensivo): más bonos y oro, casi nada de riesgo. Bitcoin queda en 0.
+const DEFENSIVO = { acciones: 1000, bonos: 5500, oro: 2500, inmuebles: 500, energia: 300, materias: 200, btc: 0 };
+function pesosDefensivos(canasta) {
+  const p = canasta.map((c) => DEFENSIVO[c[3]] ?? 0);
+  p[1] += 10000 - p.reduce((a, b) => a + b, 0); // el resto a bonos
+  return p;
+}
+
 const describir = (canasta) => canasta.map((c) => `${c[2] / 100}% ${c[0]}`).join(" · ");
 
-module.exports = { armarCanasta, leerHistorico, describir };
+module.exports = { armarCanasta, leerHistorico, describir, pesosDefensivos };

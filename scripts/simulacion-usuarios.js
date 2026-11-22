@@ -30,7 +30,7 @@ const META = Number(process.env.META ?? 4000); // colchón para abrir UFX (lo po
 const RESPALDO_OBJETIVO = 1.5;
 const RESPALDO_MAX = 2.0; // en modo "necesario", cada diciembre el colchón retira lo que sobre de 200%
 const PERMANENCIA_MESES = 48;   // tiempo promedio que cada usuario se queda
-const { armarCanasta, leerHistorico, describir } = require("./canasta");
+const { armarCanasta, leerHistorico, describir, pesosDefensivos } = require("./canasta");
 const canasta = armarCanasta();
 
 // Azar reproducible
@@ -73,7 +73,7 @@ async function main() {
   const oraculo = await (await ethers.getContractFactory("OraculoPrueba")).deploy();
   const mercado = await (await ethers.getContractFactory("MercadoPrueba")).deploy(oraculo, dolar);
   const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(
-    dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), cfg.contrato
+    dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), pesosDefensivos(canasta), cfg.contrato
   );
   const IPC = await ufx.IPC();
   const TBILL = await ufx.TBILL();

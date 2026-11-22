@@ -45,9 +45,9 @@ async function main() {
   const oraculo = await (await ethers.getContractFactory("OraculoPrueba")).deploy();
   const mercado = await (await ethers.getContractFactory("MercadoPrueba")).deploy(oraculo, dolar);
   const [dueno] = await ethers.getSigners();
-  const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), {
+  const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), [], {
     tasaFijaBps: 0, pisoStable: false, margenBps: 0, fundador: dueno.address, comisionBps: 0,
-    metaArranque: 0, cuotaEntradaBps: 0, multaSalidaBps: 0, recompensaUsd: 0, rebalanceoCada: 0,
+    metaArranque: 0, cuotaEntradaBps: 0, multaSalidaBps: 0, recompensaUsd: 0, rebalanceoCada: 0, umbralDefensivoBps: 0,
   });
   const IPC = await ufx.IPC();
 

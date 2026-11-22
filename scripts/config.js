@@ -6,6 +6,7 @@
 //   CUOTA=2 MULTA=1     entrada al colchón después del arranque / salida antes de un año
 //   RECOMPENSA=0    propina en dólares por cada `mantener()` (máximo una al día)
 //   REBALANCEO_DIAS=365 cada cuántos días rebalancea `mantener()`
+//   DEFENSIVO=130   respaldo (%) bajo el cual la canasta pasa a pesos defensivos (0 = apagado)
 const { ethers } = require("hardhat");
 
 const env = (k, d) => Number(process.env[k] ?? d);
@@ -21,6 +22,7 @@ function leerConfig(fundador, porDefecto = {}) {
     multa: env("MULTA", 1),
     recompensa: env("RECOMPENSA", porDefecto.recompensa ?? 0),
     rebalanceoDias: env("REBALANCEO_DIAS", porDefecto.rebalanceoDias ?? 365),
+    defensivo: env("DEFENSIVO", porDefecto.defensivo ?? 130),
   };
   c.contrato = {
     tasaFijaBps: Math.round(c.tasa * 100),
@@ -33,8 +35,9 @@ function leerConfig(fundador, porDefecto = {}) {
     multaSalidaBps: Math.round(c.multa * 100),
     recompensaUsd: ethers.parseUnits(String(c.recompensa), 18),
     rebalanceoCada: Math.round(c.rebalanceoDias * 86400),
+    umbralDefensivoBps: Math.round(c.defensivo * 100),
   };
-  c.texto = `UFX = máx(inflación + ${c.tasa}%, ${c.piso ? `T-bills + ${c.margen}%` : "—"}) · comisión fundador ${c.comision}% · entrada colchón ${c.cuota}% / salida temprana ${c.multa}%`;
+  c.texto = `UFX = máx(inflación + ${c.tasa}%, ${c.piso ? `T-bills + ${c.margen}%` : "—"}) · comisión fundador ${c.comision}% · entrada colchón ${c.cuota}% / salida temprana ${c.multa}%${c.defensivo ? ` · modo defensivo bajo ${c.defensivo}%` : ""}`;
   return c;
 }
 

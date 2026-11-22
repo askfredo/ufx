@@ -13,11 +13,13 @@ const num = (x) => Number(ethers.formatUnits(x, 18));
 
 // Canasta "real" de la primera versión: lo que hoy se puede conectar con tokens reales.
 const canasta = [
-  ["Bonos (sUSDS)", "tBONO", 4000, 100],
-  ["Acciones S&P 500", "tSPY", 3000, 100],
-  ["Oro (PAXG)", "tORO", 2500, 100],
-  ["Bitcoin", "tBTC", 500, 100],
+  // nombre, símbolo, peso normal, precio inicial, peso defensivo
+  ["Bonos (sUSDS)", "tBONO", 4000, 100, 6500],
+  ["Acciones S&P 500", "tSPY", 3000, 100, 500],
+  ["Oro (PAXG)", "tORO", 2500, 100, 3000],
+  ["Bitcoin", "tBTC", 500, 100, 0],
 ];
+const UMBRAL_DEFENSIVO = Number(process.env.DEFENSIVO ?? 130) * 100; // respaldo bajo 130% → pesos defensivos
 
 async function main() {
   const firmantes = await ethers.getSigners();
@@ -38,7 +40,7 @@ async function main() {
   const oraculo = await desplegar("OraculoPrueba");
   const mercado = await desplegar("MercadoPrueba", oraculo, dolar);
 
-  const ufx = await desplegar("UFIndexada", dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), {
+  const ufx = await desplegar("UFIndexada", dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), canasta.map((c) => c[4]), {
     tasaFijaBps: 200,                 // inflación + 2%
     pisoStable: true, margenBps: 50,  // ...o T-bills + 0,5%, lo que sea mayor
     fundador,
@@ -47,6 +49,7 @@ async function main() {
     cuotaEntradaBps: 200, multaSalidaBps: 100,
     recompensaUsd: e18("0.05"),       // propina para bots que llaman mantener()
     rebalanceoCada: 30 * 86400,       // rebalanceo mensual
+    umbralDefensivoBps: UMBRAL_DEFENSIVO, // bajo este respaldo, pesos defensivos
   });
 
 

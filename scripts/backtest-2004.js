@@ -9,7 +9,7 @@
 // Diego entra al colchón a fines de 2009; Carla entra a UFX a mediados de 2016.
 const fs = require("fs");
 const { ethers } = require("hardhat");
-const { armarCanasta, leerHistorico, describir } = require("./canasta");
+const { armarCanasta, leerHistorico, describir, pesosDefensivos } = require("./canasta");
 const { leerConfig } = require("./config");
 
 const e18 = (n) => ethers.parseUnits(n.toFixed(9), 18);
@@ -47,7 +47,7 @@ async function main() {
   const oraculo = await (await ethers.getContractFactory("OraculoPrueba")).deploy();
   const mercado = await (await ethers.getContractFactory("MercadoPrueba")).deploy(oraculo, dolar);
   const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(
-    dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), cfg.contrato
+    dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), pesosDefensivos(canasta), cfg.contrato
   );
   const IPC = await ufx.IPC();
   const TBILL = await ufx.TBILL();

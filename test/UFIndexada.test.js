@@ -12,7 +12,7 @@ const DIA = 86400;
 async function desplegar(opciones = {}) {
   const o = {
     tasaBps: 200, piso: true, margenBps: 50, comisionBps: 10, meta: 1000, cuotaBps: 200, multaBps: 100,
-    recompensa: 0, rebalanceoCada: 100 * ANIO, ...opciones,
+    recompensa: 0, rebalanceoCada: 100 * ANIO, umbral: 0, pesosDefensivos: [], ...opciones,
   };
   const [dueno, fondo, ana, beto, fundador, otro] = await ethers.getSigners();
   const T = await ethers.getContractFactory("TokenPrueba");
@@ -21,10 +21,10 @@ async function desplegar(opciones = {}) {
   const pesos = [4000, 4000, 2000];
   const oraculo = await (await ethers.getContractFactory("OraculoPrueba")).deploy();
   const mercado = await (await ethers.getContractFactory("MercadoPrueba")).deploy(oraculo, dolar);
-  const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, oraculo, activos, pesos, {
+  const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, oraculo, activos, pesos, o.pesosDefensivos, {
     tasaFijaBps: o.tasaBps, pisoStable: o.piso, margenBps: o.margenBps, fundador: fundador.address,
     comisionBps: o.comisionBps, metaArranque: e18(o.meta), cuotaEntradaBps: o.cuotaBps, multaSalidaBps: o.multaBps,
-    recompensaUsd: e18(o.recompensa), rebalanceoCada: o.rebalanceoCada,
+    recompensaUsd: e18(o.recompensa), rebalanceoCada: o.rebalanceoCada, umbralDefensivoBps: o.umbral,
   });
   const ufxc = await ethers.getContractAt("ParteColchon", await ufx.partes());
   const IPC = await ufx.IPC();
@@ -346,6 +346,76 @@ describe("UFX", function () {
       await expect(ufx.mantener()).to.not.emit(ufx, "Rebalanceado");
       await avanzar(25 * DIA);
       await expect(ufx.mantener()).to.emit(ufx, "Rebalanceado");
+    });
+  });
+
+  describe("Cortacircuito del IPC", function () {
+    it("ignora un salto de inflación absurdo y sigue con la pata de T-bills", async function () {
+      const { ufx, avanzar } = await loadFixture(abierto);
+      await avanzar(30 * DIA, { ipc: 1.10, tbill: 0.04 }); // +10% en un mes: sospechoso
+      expect(await ufx.ipcAceptado()).to.equal(false);
+      await expect(ufx.mantener()).to.emit(ufx, "IPCIgnorado");
+      // creció solo por T-bills + 0,5% durante ~30 días, no 10%
+      expect(num(await ufx.precioUnidad())).to.be.closeTo(1 + 0.045 * 30 / 365.25, 2e-4);
+    });
+
+    it("acepta un dato mensual normal", async function () {
+      const { ufx, avanzar } = await loadFixture(abierto);
+      await avanzar(30 * DIA, { ipc: 1.008, tbill: 0.01 });
+      expect(await ufx.ipcAceptado()).to.equal(true);
+    });
+
+    it("si el oráculo de IPC deja de publicar, UFX sigue funcionando", async function () {
+      const { ufx, oraculo, activos, ana, dolar, estado, dar } = await loadFixture(abierto);
+      await time.increase(5 * DIA);
+      // se publican precios y T-bills, pero el IPC queda viejo
+      for (let i = 0; i < activos.length; i++) await oraculo.fijarPrecio(activos[i], e18(estado.precios[i]));
+      await oraculo.fijarPrecio(await ufx.TBILL(), e18(0.04));
+      expect(await ufx.ipcAceptado()).to.equal(false);
+      await dar(ana, 100);
+      await expect(ufx.connect(ana).acunar(e18(100))).to.not.be.reverted;
+      await expect(ufx.connect(ana).quemar(e18(50))).to.not.be.reverted;
+      expect(num(await ufx.precioUnidad())).to.be.greaterThan(1);
+    });
+
+    it("la deflación fuerte no hace bajar el precio", async function () {
+      const { ufx, avanzar } = await loadFixture(abierto);
+      const antes = num(await ufx.precioUnidad());
+      await avanzar(30 * DIA, { ipc: 0.95, tbill: 0 });
+      await ufx.mantener();
+      expect(num(await ufx.precioUnidad())).to.be.at.least(antes);
+    });
+  });
+
+  describe("Modo defensivo", function () {
+    const defensivo = () => abierto({ umbral: 11500, pesosDefensivos: [1000, 6000, 3000] });
+
+    it("con el respaldo bajo el umbral pasa a pesos defensivos, y vuelve cuando se recupera", async function () {
+      const { ufx, activos, oraculo, avanzar } = await loadFixture(defensivo);
+      const pesoAcciones = async () => {
+        const v = num(await activos[0].balanceOf(ufx)) * num(await oraculo.precio(activos[0]));
+        return v / num(await ufx.valorReserva());
+      };
+      await avanzar(DIA, { precios: [85, 95, 95] }); // reserva ~4.600 / deuda ~4.000 → ~114%
+      await expect(ufx.mantener()).to.emit(ufx, "ModoDefensivo").withArgs(true, (r) => r < 11500n);
+      expect(await ufx.modoDefensivo()).to.equal(true);
+      expect(await pesoAcciones()).to.be.closeTo(0.10, 1e-6);
+      await avanzar(DIA, { precios: [150, 130, 130] }); // se recupera con fuerza
+      await expect(ufx.mantener()).to.emit(ufx, "ModoDefensivo").withArgs(false, (r) => r >= 12500n);
+      expect(await pesoAcciones()).to.be.closeTo(0.40, 1e-6);
+    });
+
+    it("no sale del modo defensivo por una recuperación chica (histéresis de 10 puntos)", async function () {
+      const { ufx, avanzar } = await loadFixture(defensivo);
+      await avanzar(DIA, { precios: [85, 95, 95] });
+      await ufx.mantener();
+      await avanzar(DIA, { precios: [90, 97, 97] }); // apenas sobre el umbral
+      await expect(ufx.mantener()).to.not.emit(ufx, "ModoDefensivo");
+      expect(await ufx.modoDefensivo()).to.equal(true);
+    });
+
+    it("rechaza pesos defensivos que no suman 100%", async function () {
+      await expect(desplegar({ umbral: 13000, pesosDefensivos: [1000, 6000, 2000] })).to.be.revertedWith("pesos defensivos deben sumar 100%");
     });
   });
 
