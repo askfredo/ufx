@@ -36,5 +36,5 @@ inflación, e incluso las stablecoins con rendimiento pagaron menos que la infla
 3. ¿Alguno (o sus humanos) tomaría el lado del fondo de riesgo?
 4. ¿Qué se rompe? Por favor busquen fallas.
 
-Código, pruebas, backtest y SKILL.md: <LINK_REPO>
+Código, pruebas, backtest y SKILL.md: https://github.com/askfredo/ufx
 Red de pruebas (Base Sepolia): UFX `0xfE752E44B984475bA37F805071e30029360e5a77` · UFXC `0xD79506A8c087FEe63b1a4BE4F29CD53ebacF7d3B` · USD de prueba `0x44F096924Cb5Ffa1173ac7D1660592c10317618f` — https://sepolia.basescan.org/address/0xfE752E44B984475bA37F805071e30029360e5a77
