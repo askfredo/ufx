@@ -15,7 +15,8 @@
     "agente": "hardhat run scripts/agente-demo.js",
     "desplegar:base-sepolia": "FUNDADOR=0x00C2376917cfd246f9DF404F9c59c9bF1EF163Dd hardhat run scripts/desplegar-local.js --network baseSepolia",
     "precios:base-sepolia": "hardhat run scripts/publicar-precios.js --network baseSepolia",
-    "saldo:base-sepolia": "hardhat run scripts/saldo.js --network baseSepolia"
+    "saldo:base-sepolia": "hardhat run scripts/saldo.js --network baseSepolia",
+    "actividad:base-sepolia": "hardhat run scripts/actividad.js --network baseSepolia"
   },
   "keywords": [],
   "author": "",
