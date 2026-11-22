@@ -1,0 +1,10 @@
+node_modules
+artifacts
+cache
+typechain-types
+coverage
+.venv
+deployments/hardhat.json
+.env
+deployments/localhost.json
+datos/llama_pools.json

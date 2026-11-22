@@ -1,0 +1,29 @@
+{
+  "name": "uf-global",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "demo": "hardhat run scripts/demo-indexada.js",
+    "compile": "hardhat compile",
+    "demo-v1": "hardhat run scripts/demo-canasta.js",
+    "backtest": "hardhat run scripts/backtest-2004.js",
+    "simulacion": "hardhat run scripts/simulacion-usuarios.js",
+    "nodo": "hardhat node",
+    "desplegar:local": "hardhat run scripts/desplegar-local.js --network localhost",
+    "agente": "hardhat run scripts/agente-demo.js",
+    "desplegar:base-sepolia": "FUNDADOR=0x00C2376917cfd246f9DF404F9c59c9bF1EF163Dd hardhat run scripts/desplegar-local.js --network baseSepolia",
+    "precios:base-sepolia": "hardhat run scripts/publicar-precios.js --network baseSepolia",
+    "saldo:base-sepolia": "hardhat run scripts/saldo.js --network baseSepolia"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.6.1",
+    "hardhat": "^2.29.2"
+  }
+}

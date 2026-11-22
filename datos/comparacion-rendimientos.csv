@@ -1,0 +1,13 @@
+Producto,Fuente del rendimiento,2022,2023,2024,2025,2026 (anualizado)
+"UFX (inflación+2% o T-bills+0,5%)",Canasta + colchón,9.4%,6.3%,6.0%,5.3%,7.2%
+T-bills 3 meses (FRED),Referencia stablecoins,1.7%,5.1%,5.2%,4.2%,3.7%
+USDC en Aave v3,"Préstamos DeFi, tasa variable",—,3.8%*,7.1%,4.1%,3.5%
+USDC en Compound v2,"Préstamos DeFi, tasa variable",1.6%*,3.4%,4.7%,3.6%,0.0%
+sUSDS (Sky),Tasa de ahorro de Sky (ex-DSR),—,—,—,4.7%*,3.7%
+sUSDe (Ethena),Funding de futuros cripto,—,—,17.0%*,6.5%,4.3%
+USDY (Ondo),T-bills tokenizados,—,—,—,—,3.6%
+"stETH (Lido), en ETH",Staking de ETH,4.5%*,4.3%,3.2%,2.8%,2.4%
+"rETH (Rocket Pool), en ETH",Staking de ETH,—,3.8%,2.8%,2.6%,2.2%
+stETH medido en dólares,Staking + precio de ETH,-66%,+99%,+51%,-8%,-41%
+USDC solo,Sin rendimiento,0.0%,0.0%,0.0%,0.0%,0.0%
+Inflación EE.UU.,,7.1%,3.1%,2.7%,2.7%,4.2%
