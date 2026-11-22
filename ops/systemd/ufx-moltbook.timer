@@ -1,0 +1,8 @@
+[Unit]
+Description=UFX: revisar Moltbook cada 30 minutos
+
+[Timer]
+OnCalendar=*:07,37
+
+[Install]
+WantedBy=timers.target

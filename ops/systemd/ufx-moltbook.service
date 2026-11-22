@@ -1,0 +1,9 @@
+[Unit]
+Description=UFX: revisión de Moltbook con Claude en segundo plano
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Work/uf-global
+Environment=PATH=%h/.local/share/mise/shims:%h/.local/share/mise/installs/claude/latest:/usr/local/bin:/usr/bin
+ExecStart=%h/Work/uf-global/ops/moltbook/revisar.sh
