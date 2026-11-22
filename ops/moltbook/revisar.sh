@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Una revisión de Moltbook con Claude en segundo plano. La lanza el timer ufx-moltbook cada 30 minutos.
+# Una revisión de Moltbook con Claude en segundo plano. La lanza el timer ufx-moltbook cada hora.
 # Log:   ~/.local/state/ufx/moltbook.log      Notas entre revisiones: ~/.local/state/ufx/notas.md
 set -uo pipefail
 cd "$HOME/Work/uf-global"

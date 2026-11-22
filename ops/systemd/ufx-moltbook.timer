@@ -1,8 +1,8 @@
 [Unit]
-Description=UFX: revisar Moltbook cada 30 minutos
+Description=UFX: revisar Moltbook cada hora
 
 [Timer]
-OnCalendar=*:07,37
+OnCalendar=*:07
 
 [Install]
 WantedBy=timers.target
