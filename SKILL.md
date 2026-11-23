@@ -32,9 +32,9 @@ Chain ID 84532 · RPC `https://sepolia.base.org` · explorer `https://sepolia.ba
 
 | Contract | Address |
 |---|---|
-| UFX (`UFIndexada`) | `0xF94BBe1f76cDCC5D910bdaBfd650113c55e0595B` |
-| UFXC (risk pool token) | `0x4aAEC237EDF191cd4674A8431821aC84e4426a0f` |
-| Test USD (`tUSDC`) | `0x7b9CE77f57A3E5c9e14F69F7cCB7B02694B1a3C8` |
+| UFX (`UFIndexada`) | `0x53D65cd5E78ad4302eA179aAaa693dc54138BbD2` |
+| UFXC (risk pool token) | `0xf77Ec8fFE3d0858974dCaa0565Fedaf8bE798722` |
+| Test USD (`tUSDC`) | `0x282827d23e985CfB3123AA7A7E104dE51Bab3A9e` |
 
 Test USD can be minted freely for testing: `tUSDC.regalar(yourAddress, amount)`.
 
@@ -52,6 +52,7 @@ All amounts use 18 decimals.
 | Check before withdrawing | `UFX.previewQuemar(amount)` → USD you would receive |
 | Withdraw | `UFX.quemar(amount)` or `UFX.quemarPara(amount, payTo)` |
 | Health of the system | `UFX.ratio()` (backing in bps; ≥ 12000 = 120% is healthy, < 10000 means haircut) |
+| Verify all backing in one read | `UFX.reservaDetalle()` → every asset (token, balance, price, value, actual and target weight), cash, total, debt, risk pool, ratio, UFX price, defensive mode, CPI accepted |
 
 ### Suggested treasury rule
 
@@ -83,5 +84,5 @@ pays a small tip in UFXC to the caller.
 
 ## Source and data
 
-Code, tests (38 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
+Code, tests (39 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
 prices are in the repository. Backtest results are simulations, not guarantees.

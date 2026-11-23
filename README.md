@@ -33,6 +33,7 @@ Una regla clara, sin KYC ni intermediarios: algo que un agente puede programar y
 | `acunar(usd)` / `acunarPara(usd, receptor)` | Guardar dólares en UFX (para sí o para otra dirección) |
 | `quemar(cant)` / `quemarPara(cant, receptor)` | Sacar dólares (a sí o directo a quien hay que pagarle) |
 | `valorEnDolares(dirección)` | Cuánto vale hoy un saldo |
+| `reservaDetalle()` | Todo el respaldo en una lectura: cada activo (saldo, precio, valor, peso), caja, deuda, colchón, respaldo, modo defensivo e IPC |
 | `previewAcunar(usd)` / `previewQuemar(cant)` | Simular antes de operar (`previewAcunar` devuelve 0 si la creación está pausada) |
 | `precioUnidad()` | Precio de 1 UFX; nunca baja |
 | `mantener()` | Mantención del protocolo con propina |
@@ -47,7 +48,7 @@ contracts/
   UFIndexada.sol      UFX (precio indexado, colchón, arranque, comisión, mantención) + ParteColchon (token UFXC)
   Canasta.sol         Piezas de prueba (TokenPrueba, OraculoPrueba, MercadoPrueba) y la v1 MonedaCanasta
 test/
-  UFIndexada.test.js  38 pruebas, incluida una al azar de 400 operaciones
+  UFIndexada.test.js  39 pruebas, incluida una al azar de 400 operaciones
 scripts/
   desplegar-local.js  Despliega todo con tokens de mentira en un nodo local
   agente-demo.js      Un agente de IA manejando su tesorería con UFX + un bot de mantención
@@ -128,5 +129,6 @@ frecuentes con respuestas.
 
 ## Historial de despliegues (Base Sepolia)
 
-- **v2** (actual): cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia.json`.
+- **v3** (actual): `reservaDetalle()` para verificar todo el respaldo en una lectura (idea de muse_scanner en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v2**: cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia-v2.json`.
 - **v1**: primera versión. Direcciones en `deployments/baseSepolia-v1.json` (ya no se publican precios; quedó detenida).

@@ -260,6 +260,53 @@ contract UFIndexada is ERC20, ReentrancyGuard {
         return t == 0 ? 1e18 : (colchon() * 1e18) / t;
     }
 
+    struct Activo {
+        address token;
+        uint256 saldo;         // cantidad que tiene el contrato
+        uint256 precio;        // dólares por unidad según el oráculo
+        uint256 valor;         // saldo × precio
+        uint256 pesoActualBps; // peso real en la reserva
+        uint256 pesoObjetivoBps; // peso objetivo (normal o defensivo)
+    }
+
+    struct Reserva {
+        Activo[] activos;
+        uint256 caja;          // dólares sin invertir
+        uint256 total;         // valor de toda la reserva
+        uint256 deuda;         // lo que se debe a quienes tienen UFX
+        uint256 colchon;       // total - deuda
+        uint256 ratioBps;      // respaldo
+        uint256 precioUFX;
+        uint256 ufxEnCirculacion;
+        bool modoDefensivo;
+        bool ipcAceptado;
+    }
+
+    /// Todo el respaldo en una sola lectura, para verificarlo sin confiar en nadie.
+    function reservaDetalle() external view returns (Reserva memory r) {
+        r.caja = dolar.balanceOf(address(this));
+        r.total = r.caja;
+        r.activos = new Activo[](activos.length);
+        for (uint256 i = 0; i < activos.length; i++) {
+            Activo memory a = r.activos[i];
+            a.token = address(activos[i]);
+            a.saldo = activos[i].balanceOf(address(this));
+            a.precio = oraculo.precio(a.token);
+            a.valor = (a.saldo * a.precio) / 1e18;
+            a.pesoObjetivoBps = _peso(i);
+            r.total += a.valor;
+        }
+        for (uint256 i = 0; i < activos.length; i++) {
+            if (r.total > 0) r.activos[i].pesoActualBps = (r.activos[i].valor * 10000) / r.total;
+        }
+        (r.precioUFX, , , r.ipcAceptado) = _precioAhora();
+        r.ufxEnCirculacion = totalSupply();
+        r.deuda = (r.ufxEnCirculacion * r.precioUFX) / 1e18;
+        r.colchon = r.total > r.deuda ? r.total - r.deuda : 0;
+        r.ratioBps = r.deuda == 0 ? type(uint256).max : (r.total * 10000) / r.deuda;
+        r.modoDefensivo = modoDefensivo;
+    }
+
     // ─────────────────────────── UFX ───────────────────────────
 
     /// ENTRAR: das dólares, se compra la canasta, recibes UFX al precio de hoy.

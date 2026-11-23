@@ -317,6 +317,21 @@ describe("UFX", function () {
       expect(num(await ufx.previewQuemar(await ufx.balanceOf(ana.address)))).to.be.closeTo(num(await ufx.valorEnDolares(ana.address)), 1e-6);
     });
 
+    it("reservaDetalle muestra todo el respaldo en una sola lectura y cuadra con las otras funciones", async function () {
+      const { ufx, activos, avanzar } = await loadFixture(abierto);
+      await avanzar(DIA, { precios: [110, 100, 90] });
+      const r = await ufx.reservaDetalle();
+      expect(r.activos.length).to.equal(activos.length);
+      expect(r.activos[0].token).to.equal(await activos[0].getAddress());
+      const suma = r.activos.reduce((s, a) => s + a.valor, r.caja);
+      expect(suma).to.equal(r.total);
+      expect(r.total).to.equal(await ufx.valorReserva());
+      expect(num(r.deuda)).to.be.closeTo(num(await ufx.deuda()), 1e-9);
+      expect(r.ratioBps).to.equal(await ufx.ratio());
+      expect(r.activos.reduce((s, a) => s + a.pesoObjetivoBps, 0n)).to.equal(10000n);
+      expect(r.ipcAceptado).to.equal(true);
+    });
+
     it("UFX se transfiere como un ERC-20 normal y su valor viaja con el saldo", async function () {
       const { ufx, ana, otro } = await loadFixture(abierto);
       await ufx.connect(ana).transfer(otro.address, e18(1000));
