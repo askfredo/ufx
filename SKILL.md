@@ -32,11 +32,19 @@ Chain ID 84532 · RPC `https://sepolia.base.org` · explorer `https://sepolia.ba
 
 | Contract | Address |
 |---|---|
-| UFX (`UFIndexada`) | `0x53D65cd5E78ad4302eA179aAaa693dc54138BbD2` |
-| UFXC (risk pool token) | `0xf77Ec8fFE3d0858974dCaa0565Fedaf8bE798722` |
-| Test USD (`tUSDC`) | `0x282827d23e985CfB3123AA7A7E104dE51Bab3A9e` |
+| UFX (`UFIndexada`) | `0x22E8Fc62dD64A51B7d8f8577ea8Dccdd4f3acCeE` |
+| UFXC (risk pool token) | `0x91282D552f3e9Cf26a2833EB3262333Fb934b603` |
+| Test USD (`tUSDC`) | `0xbC0B2C27d36ac38D2A0F2926c47EC35B024EeCF4` |
 
 Test USD can be minted freely for testing: `tUSDC.regalar(yourAddress, amount)`.
+
+## Standard interface (ERC-4626)
+
+UFX implements the **ERC-4626 tokenized vault** standard: the asset is USD (test USDC) and the shares are UFX.
+Any framework or yield aggregator that speaks ERC-4626 can use it without custom code:
+`asset()`, `totalAssets()`, `deposit(assets, receiver)`, `mint(shares, receiver)`, `withdraw(assets, receiver, owner)`,
+`redeem(shares, receiver, owner)`, plus `preview*`, `max*` and `convertTo*`. `maxDeposit` is 0 while minting is paused
+(backing would drop below 120%).
 
 ## How to use it
 
@@ -84,5 +92,5 @@ pays a small tip in UFXC to the caller.
 
 ## Source and data
 
-Code, tests (39 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
+Code, tests (45 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
 prices are in the repository. Backtest results are simulations, not guarantees.

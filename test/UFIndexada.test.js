@@ -339,6 +339,71 @@ describe("UFX", function () {
     });
   });
 
+  describe("Estándar ERC-4626", function () {
+    it("asset, totalAssets y conversiones", async function () {
+      const { ufx, dolar, avanzar } = await loadFixture(abierto);
+      expect(await ufx.asset()).to.equal(await dolar.getAddress());
+      expect(await ufx.totalAssets()).to.equal(await ufx.deuda());
+      await avanzar(ANIO, { ipc: 1.03 });
+      const p = num(await ufx.precioUnidad());
+      expect(num(await ufx.convertToAssets(e18(100)))).to.be.closeTo(100 * p, 1e-9);
+      expect(num(await ufx.convertToShares(e18(100)))).to.be.closeTo(100 / p, 1e-9);
+    });
+
+    it("deposit y mint entregan lo que dicen sus preview", async function () {
+      const { ufx, beto, otro, dar, avanzar } = await loadFixture(abierto);
+      await avanzar(90 * DIA, { ipc: 1.01 });
+      await dar(beto, 1000);
+      const esperado = await ufx.previewDeposit(e18(100));
+      await expect(ufx.connect(beto).deposit(e18(100), otro.address)).to.emit(ufx, "Deposit");
+      // la transacción ocurre unos segundos después de la consulta: el precio ya subió un poquito
+      expect(num(await ufx.balanceOf(otro.address))).to.be.closeTo(num(esperado), 1e-6);
+      const cuesta = await ufx.previewMint(e18(50));
+      const antes = await ufx.balanceOf(beto.address);
+      await ufx.connect(beto).mint(e18(50), beto.address);
+      expect((await ufx.balanceOf(beto.address)) - antes).to.equal(e18(50)); // exactamente las acciones pedidas
+      expect(cuesta).to.be.greaterThan(e18(50)); // el precio ya subió sobre $1
+    });
+
+    it("withdraw paga exactamente lo pedido y redeem lo que dice previewRedeem", async function () {
+      const { ufx, dolar, ana, otro, avanzar } = await loadFixture(abierto);
+      await avanzar(180 * DIA, { ipc: 1.02, precios: [104, 101, 102] });
+      await ufx.connect(ana).withdraw(e18(250), otro.address, ana.address);
+      expect(await dolar.balanceOf(otro.address)).to.equal(e18(250));
+      const esperado = await ufx.previewRedeem(e18(100));
+      const antes = await dolar.balanceOf(ana.address);
+      await expect(ufx.connect(ana).redeem(e18(100), ana.address, ana.address)).to.emit(ufx, "Withdraw");
+      expect(num((await dolar.balanceOf(ana.address)) - antes)).to.be.closeTo(num(esperado), 1e-6);
+    });
+
+    it("un tercero solo puede retirar con permiso (allowance)", async function () {
+      const { ufx, ana, otro } = await loadFixture(abierto);
+      await expect(ufx.connect(otro).redeem(e18(10), otro.address, ana.address)).to.be.reverted;
+      await ufx.connect(ana).approve(otro.address, e18(10));
+      await ufx.connect(otro).redeem(e18(10), otro.address, ana.address);
+      expect(await ufx.allowance(ana.address, otro.address)).to.equal(0n);
+    });
+
+    it("maxDeposit respeta el 120% y es 0 durante el arranque", async function () {
+      const f = await loadFixture(abierto);
+      const max = await f.ufx.maxDeposit(f.beto.address);
+      await f.dar(f.beto, 10000);
+      await f.ufx.connect(f.beto).deposit(max - e18(1), f.beto.address); // justo bajo el máximo pasa
+      await expect(f.ufx.connect(f.beto).deposit(e18(10), f.beto.address)).to.be.revertedWith("respaldo bajo 120%: creacion pausada");
+      const nuevo = await desplegar();
+      expect(await nuevo.ufx.maxDeposit(nuevo.ana.address)).to.equal(0n);
+    });
+
+    it("withdraw también funciona con descuento cuando la reserva no alcanza", async function () {
+      const { ufx, dolar, ana, publicar } = await loadFixture(abierto);
+      await publicar({ precios: [50, 50, 50] }); // reserva ~2.500 < deuda ~4.000
+      const max = await ufx.maxWithdraw(ana.address);
+      expect(num(max)).to.be.closeTo(2500, 1);
+      await ufx.connect(ana).withdraw(e18(1000), ana.address, ana.address);
+      expect(await dolar.balanceOf(ana.address)).to.equal(e18(1000));
+    });
+  });
+
   describe("Mantención por bots", function () {
     const conPropina = () => abierto({ recompensa: 0.05 });
     const rebalanceoMensual = () => abierto({ rebalanceoCada: 30 * DIA });
@@ -384,7 +449,8 @@ describe("UFX", function () {
       const { ufx, oraculo, activos, ana, dolar, estado, dar } = await loadFixture(abierto);
       await time.increase(5 * DIA);
       // se publican precios y T-bills, pero el IPC queda viejo
-      for (let i = 0; i < activos.length; i++) await oraculo.fijarPrecio(activos[i], e18(estado.precios[i]));
+      // (precios fijos: `estado` es JS y no se restaura con loadFixture entre pruebas)
+      for (let i = 0; i < activos.length; i++) await oraculo.fijarPrecio(activos[i], e18(100));
       await oraculo.fijarPrecio(await ufx.TBILL(), e18(0.04));
       expect(await ufx.ipcAceptado()).to.equal(false);
       await dar(ana, 100);

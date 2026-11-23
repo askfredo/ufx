@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./Canasta.sol"; // TokenPrueba, OraculoPrueba, MercadoPrueba
 
 // ════════════════════════════════════════════════════════════════════
@@ -55,7 +57,7 @@ contract ParteColchon is ERC20 {
     }
 }
 
-contract UFIndexada is ERC20, ReentrancyGuard {
+contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
     using SafeERC20 for IERC20;
 
     struct Config {
@@ -316,14 +318,8 @@ contract UFIndexada is ERC20, ReentrancyGuard {
 
     /// Igual que `acunar`, pero las UFX van a `receptor` (útil para agentes y otros contratos).
     function acunarPara(uint256 usd, address receptor) public nonReentrant alDia returns (uint256 nuevas) {
-        require(usd > 0, "monto vacio");
-        require(abiertoDesde != 0, "fase de arranque: se esta armando el colchon");
         nuevas = (usd * 1e18) / precioUnidad();
-        IERC20(address(dolar)).safeTransferFrom(msg.sender, address(this), usd);
-        _comprarCanasta(usd);
-        _mint(receptor, nuevas);
-        require(ratio() >= RATIO_MIN, "respaldo bajo 120%: creacion pausada");
-        emit Acunado(msg.sender, receptor, usd, nuevas);
+        _acunar(usd, nuevas, receptor);
     }
 
     /// SALIR: entregas UFX y recibes su valor en dólares. Si una crisis dejó la reserva
@@ -334,12 +330,122 @@ contract UFIndexada is ERC20, ReentrancyGuard {
 
     /// Igual que `quemar`, pero los dólares van a `receptor`.
     function quemarPara(uint256 cant, address receptor) public nonReentrant alDia returns (uint256 usd) {
-        require(cant > 0 && cant <= balanceOf(msg.sender), "cantidad invalida");
+        usd = _quemar(msg.sender, cant, receptor, 0);
+    }
+
+    function _acunar(uint256 usd, uint256 nuevas, address receptor) internal {
+        require(usd > 0 && nuevas > 0, "monto vacio");
+        require(abiertoDesde != 0, "fase de arranque: se esta armando el colchon");
+        IERC20(address(dolar)).safeTransferFrom(msg.sender, address(this), usd);
+        _comprarCanasta(usd);
+        _mint(receptor, nuevas);
+        require(ratio() >= RATIO_MIN, "respaldo bajo 120%: creacion pausada");
+        emit Acunado(msg.sender, receptor, usd, nuevas);
+        emit Deposit(msg.sender, receptor, usd, nuevas);
+    }
+
+    /// Quema `cant` UFX de `dueno` (con permiso si quien llama es otro) y paga a `receptor`.
+    /// Si `usdExacto` > 0 se paga exactamente eso (lo que sobra de redondeo queda en la reserva).
+    function _quemar(address dueno, uint256 cant, address receptor, uint256 usdExacto) internal returns (uint256 usd) {
+        require(cant > 0 && cant <= balanceOf(dueno), "cantidad invalida");
+        if (msg.sender != dueno) _spendAllowance(dueno, msg.sender, cant);
         usd = previewQuemar(cant);
-        _burn(msg.sender, cant);
+        _burn(dueno, cant);
         usd = _venderCanasta(usd);
+        if (usdExacto > 0) {
+            require(usd >= usdExacto, "no alcanza para el retiro exacto");
+            usd = usdExacto;
+        }
         IERC20(address(dolar)).safeTransfer(receptor, usd);
-        emit Quemado(msg.sender, receptor, cant, usd);
+        emit Quemado(dueno, receptor, cant, usd);
+        emit Withdraw(msg.sender, receptor, dueno, usd, cant);
+    }
+
+    // ─────────────────────────── ERC-4626 ───────────────────────────
+    // Interfaz estándar de bóveda: el activo es el dólar (USDC) y las "acciones" son UFX.
+    // Así cualquier agregador o framework de agentes que entienda ERC-4626 puede usar UFX sin código especial.
+
+    uint256 private constant POLVO_RETIRO = 1000; // margen en wei para que un retiro exacto nunca quede corto por redondeo
+
+    function asset() external view returns (address) {
+        return address(dolar);
+    }
+
+    /// Dólares que se deben a quienes tienen UFX.
+    function totalAssets() external view returns (uint256) {
+        return deuda();
+    }
+
+    function convertToShares(uint256 assets) public view returns (uint256) {
+        return (assets * 1e18) / precioUnidad();
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256) {
+        return (shares * precioUnidad()) / 1e18;
+    }
+
+    /// Máximo que se puede depositar hoy sin dejar el respaldo bajo 120% (0 durante el arranque).
+    function maxDeposit(address) public view returns (uint256) {
+        if (abiertoDesde == 0) return 0;
+        uint256 r = valorReserva() * 10000;
+        uint256 d = deuda() * RATIO_MIN;
+        return r > d ? (r - d) / (RATIO_MIN - 10000) : 0;
+    }
+
+    function previewDeposit(uint256 assets) external view returns (uint256) {
+        return convertToShares(assets);
+    }
+
+    function deposit(uint256 assets, address receiver) external nonReentrant alDia returns (uint256 shares) {
+        shares = (assets * 1e18) / precioUnidad();
+        _acunar(assets, shares, receiver);
+    }
+
+    function maxMint(address receiver) external view returns (uint256) {
+        return convertToShares(maxDeposit(receiver));
+    }
+
+    function previewMint(uint256 shares) public view returns (uint256) {
+        return Math.mulDiv(shares, precioUnidad(), 1e18, Math.Rounding.Ceil);
+    }
+
+    function mint(uint256 shares, address receiver) external nonReentrant alDia returns (uint256 assets) {
+        assets = previewMint(shares);
+        _acunar(assets, shares, receiver);
+    }
+
+    function maxWithdraw(address owner_) external view returns (uint256) {
+        uint256 v = previewQuemar(balanceOf(owner_));
+        return v > POLVO_RETIRO ? v - POLVO_RETIRO : 0;
+    }
+
+    /// UFX que hay que quemar para recibir exactamente `assets` (con descuento si la reserva no alcanza).
+    function previewWithdraw(uint256 assets) public view returns (uint256) {
+        uint256 sup = totalSupply();
+        uint256 r = valorReserva();
+        uint256 conPolvo = assets + POLVO_RETIRO;
+        if (sup > 0 && r < deuda()) {
+            require(r > 0, "reserva vacia");
+            return Math.mulDiv(conPolvo, sup, r, Math.Rounding.Ceil);
+        }
+        return Math.mulDiv(conPolvo, 1e18, precioUnidad(), Math.Rounding.Ceil);
+    }
+
+    function withdraw(uint256 assets, address receiver, address owner_) external nonReentrant alDia returns (uint256 shares) {
+        shares = previewWithdraw(assets);
+        _quemar(owner_, shares, receiver, assets);
+    }
+
+    function maxRedeem(address owner_) external view returns (uint256) {
+        return balanceOf(owner_);
+    }
+
+    function previewRedeem(uint256 shares) external view returns (uint256) {
+        return previewQuemar(shares);
+    }
+
+    function redeem(uint256 shares, address receiver, address owner_) external nonReentrant alDia returns (uint256 assets) {
+        assets = _quemar(owner_, shares, receiver, 0);
     }
 
     // ─────────────────────────── colchón ───────────────────────────

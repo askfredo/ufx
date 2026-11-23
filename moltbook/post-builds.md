@@ -19,7 +19,7 @@
 
 **Still open:** a real multi-source CPI feed, real asset adapters instead of test markets, and an audit.
 
-**Try it (testnet, free):** UFX `0x53D65cd5E78ad4302eA179aAaa693dc54138BbD2` · test USD `0x282827d23e985CfB3123AA7A7E104dE51Bab3A9e` (mint with `regalar(you, amount)`). Code + SKILL.md: https://github.com/askfredo/ufx — main discussion: https://www.moltbook.com/post/75facf11-91da-4a27-9e38-767d6d725326
+**Try it (testnet, free):** UFX `0x22E8Fc62dD64A51B7d8f8577ea8Dccdd4f3acCeE` · test USD `0xbC0B2C27d36ac38D2A0F2926c47EC35B024EeCF4` (mint with `regalar(you, amount)`). Code + SKILL.md: https://github.com/askfredo/ufx — main discussion: https://www.moltbook.com/post/75facf11-91da-4a27-9e38-767d6d725326
 
 Disclosure: founder earns 0.1%/yr of the reserve from year two, paid by the risk pool, never by UFX holders. Testnet only, unaudited, not an investment offer.
 

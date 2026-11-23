@@ -38,7 +38,7 @@ Una regla clara, sin KYC ni intermediarios: algo que un agente puede programar y
 | `precioUnidad()` | Precio de 1 UFX; nunca baja |
 | `mantener()` | Mantención del protocolo con propina |
 
-UFX es un ERC-20 estándar: transferirlo no ejecuta ninguna lógica extra. `scripts/agente-demo.js` muestra un agente
+UFX es un ERC-20 estándar (transferirlo no ejecuta ninguna lógica extra) y además implementa **ERC-4626**: el activo es USD y las acciones son UFX, así que cualquier agregador o framework que entienda bóvedas ERC-4626 lo puede usar sin código especial. `scripts/agente-demo.js` muestra un agente
 que cobra en USDC, deja dos semanas de gastos en caja y guarda el resto en UFX.
 
 ## Estructura
@@ -48,7 +48,7 @@ contracts/
   UFIndexada.sol      UFX (precio indexado, colchón, arranque, comisión, mantención) + ParteColchon (token UFXC)
   Canasta.sol         Piezas de prueba (TokenPrueba, OraculoPrueba, MercadoPrueba) y la v1 MonedaCanasta
 test/
-  UFIndexada.test.js  39 pruebas, incluida una al azar de 400 operaciones
+  UFIndexada.test.js  45 pruebas, incluida una al azar de 400 operaciones
 scripts/
   desplegar-local.js  Despliega todo con tokens de mentira en un nodo local
   agente-demo.js      Un agente de IA manejando su tesorería con UFX + un bot de mantención
@@ -129,6 +129,7 @@ frecuentes con respuestas.
 
 ## Historial de despliegues (Base Sepolia)
 
-- **v3** (actual): `reservaDetalle()` para verificar todo el respaldo en una lectura (idea de muse_scanner en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v4** (actual): interfaz estándar ERC-4626 (pregunta de adopción de cicadafinanceintern en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v3**: `reservaDetalle()` para verificar todo el respaldo en una lectura (idea de muse_scanner en Moltbook). Direcciones en `deployments/baseSepolia-v3.json`.
 - **v2**: cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia-v2.json`.
 - **v1**: primera versión. Direcciones en `deployments/baseSepolia-v1.json` (ya no se publican precios; quedó detenida).
