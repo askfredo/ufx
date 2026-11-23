@@ -404,6 +404,110 @@ describe("UFX", function () {
     });
   });
 
+  describe("Costo de ejecución (slippage)", function () {
+    it("quien deposita paga su propio costo de ejecución: los que ya estaban no pierden", async function () {
+      const { ufx, mercado, ana, beto, dar } = await loadFixture(abierto);
+      await mercado.fijarComision(100); // el exchange cobra 1%
+      const anaAntes = num(await ufx.valorEnDolares(ana.address));
+      const colchonAntes = num(await ufx.colchon());
+      await dar(beto, 1000);
+      await ufx.connect(beto).deposit(e18(1000), beto.address);
+      expect(num(await ufx.valorEnDolares(beto.address))).to.be.closeTo(990, 0.01); // recibió por lo que realmente se compró
+      expect(num(await ufx.valorEnDolares(ana.address))).to.be.closeTo(anaAntes, 1e-4); // solo el interés de unos segundos
+      expect(num(await ufx.colchon())).to.be.closeTo(colchonAntes, 0.01); // el colchón no pagó el slippage de Beto
+    });
+
+    it("quien retira paga su propio costo de ejecución", async function () {
+      const { ufx, mercado, dolar, ana } = await loadFixture(abierto);
+      await mercado.fijarComision(100);
+      const colchonAntes = num(await ufx.colchon());
+      const valor = num(await ufx.valorEnDolares(ana.address)) / 4;
+      await ufx.connect(ana).redeem(e18(1000), ana.address, ana.address);
+      expect(num(await dolar.balanceOf(ana.address))).to.be.closeTo(valor * 0.99, 0.05);
+      expect(num(await ufx.colchon())).to.be.closeTo(colchonAntes, 0.05);
+    });
+
+    it("quien entra al colchón también paga su costo, sin diluir a los demás", async function () {
+      const { ufx, mercado, fondo, beto, dar, colchonDe } = await loadFixture(abierto);
+      await mercado.fijarComision(100);
+      const fondoAntes = await colchonDe(fondo);
+      await dar(beto, 1000);
+      await ufx.connect(beto).aportarColchon(e18(1000));
+      expect(await colchonDe(fondo)).to.be.at.least(fondoAntes - 0.01); // no lo diluyó (y gana la entrada de 2%)
+      // partes por 990 × 0,98 = 970,2 sobre un colchón que queda en 1.000 + 990: le vuelve su proporción de la cuota
+      expect(await colchonDe(beto)).to.be.closeTo((970.2 / 1970.2) * 1990, 0.5);
+      expect(await colchonDe(fondo)).to.be.greaterThan(fondoAntes); // el fondo gana la otra parte de la cuota
+    });
+
+    it("withdraw exacto avisa si el costo de ejecución no alcanza (usar redeem)", async function () {
+      const { ufx, mercado, ana } = await loadFixture(abierto);
+      await mercado.fijarComision(100);
+      await expect(ufx.connect(ana).withdraw(e18(500), ana.address, ana.address)).to.be.revertedWith("costo de ejecucion: usa redeem");
+    });
+  });
+
+  describe("Oráculo por mediana (sin dueño)", function () {
+    async function mediana() {
+      const [, , , , , , dir] = await ethers.getSigners();
+      const OP = await ethers.getContractFactory("OraculoPrueba");
+      const fuentes = [await OP.deploy(), await OP.deploy(), await OP.deploy()];
+      const med = await (await ethers.getContractFactory("OraculoMediana")).deploy(fuentes, 2);
+      return { fuentes, med, clave: dir.address };
+    }
+
+    it("una fuente loca no mueve el resultado", async function () {
+      const { fuentes, med, clave } = await loadFixture(mediana);
+      await fuentes[0].fijarPrecio(clave, e18(100));
+      await fuentes[1].fijarPrecio(clave, e18(101));
+      await fuentes[2].fijarPrecio(clave, e18(5000)); // manipulada
+      expect(num(await med.precio(clave))).to.equal(101);
+    });
+
+    it("ignora fuentes sin dato o viejas, y exige un mínimo de fuentes válidas", async function () {
+      const { fuentes, med, clave } = await loadFixture(mediana);
+      await fuentes[0].fijarPrecio(clave, e18(100));
+      await time.increase(3 * DIA); // la fuente 0 queda vieja
+      await fuentes[1].fijarPrecio(clave, e18(102));
+      await fuentes[2].fijarPrecio(clave, e18(104));
+      expect(num(await med.precio(clave))).to.equal(103); // promedio de las dos válidas
+      await time.increase(3 * DIA);
+      await fuentes[1].fijarPrecio(clave, e18(102)); // ahora solo una válida
+      await expect(med.precio(clave)).to.be.revertedWith("pocas fuentes validas");
+    });
+
+    it("UFX funciona sobre el oráculo de mediana aunque una fuente publique un IPC absurdo", async function () {
+      const { fuentes, med } = await loadFixture(mediana);
+      const [, fondo, ana, , fundador] = await ethers.getSigners();
+      const T = await ethers.getContractFactory("TokenPrueba");
+      const dolar = await T.deploy("Dolar", "USD");
+      const activo = await T.deploy("Bonos", "tBONO");
+      const mercado = await (await ethers.getContractFactory("MercadoPrueba")).deploy(med, dolar);
+      const ufx = await (await ethers.getContractFactory("UFIndexada")).deploy(dolar, mercado, med, [activo], [10000], [], {
+        tasaFijaBps: 200, pisoStable: true, margenBps: 50, fundador: fundador.address, comisionBps: 0,
+        metaArranque: e18(100), cuotaEntradaBps: 0, multaSalidaBps: 0, recompensaUsd: 0, rebalanceoCada: ANIO, umbralDefensivoBps: 0,
+      });
+      const publicar = async (ipcs) => {
+        for (let i = 0; i < 3; i++) {
+          await fuentes[i].fijarPrecio(activo, e18(100));
+          await fuentes[i].fijarPrecio(await ufx.IPC(), e18(ipcs[i]));
+          await fuentes[i].fijarPrecio(await ufx.TBILL(), e18(0.04));
+        }
+      };
+      await publicar([1, 1, 1]);
+      for (const [w, n] of [[fondo, 1000], [ana, 1000]]) {
+        await dolar.regalar(w.address, e18(n));
+        await dolar.connect(w).approve(ufx, ethers.MaxUint256);
+      }
+      await ufx.connect(fondo).aportarColchon(e18(1000));
+      await ufx.connect(ana).acunar(e18(500));
+      await time.increase(30 * DIA);
+      await publicar([1.003, 1.004, 9]); // una fuente dice que la inflación fue 800%
+      await ufx.mantener();
+      expect(await ufx.ipcAceptado()).to.equal(true); // la mediana (1,004) es razonable
+      expect(num(await ufx.precioUnidad())).to.be.lessThan(1.01);
+    });
+  });
+
   describe("Mantención por bots", function () {
     const conPropina = () => abierto({ recompensa: 0.05 });
     const rebalanceoMensual = () => abierto({ rebalanceoCada: 30 * DIA });

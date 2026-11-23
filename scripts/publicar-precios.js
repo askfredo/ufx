@@ -15,7 +15,8 @@ async function main() {
   const d = JSON.parse(fs.readFileSync(`deployments/${network.name}.json`, "utf8"));
   const archivo = `deployments/${network.name}-estado.json`;
   if (fs.existsSync(archivo)) Object.assign(d, JSON.parse(fs.readFileSync(archivo, "utf8")));
-  const oraculo = await ethers.getContractAt("OraculoPrueba", d.oraculo);
+  // Con oráculo de mediana se publica en cada fuente (con un pequeño ruido independiente en los activos).
+  const fuentes = await Promise.all((d.fuentes ?? [d.oraculo]).map((x) => ethers.getContractAt("OraculoPrueba", x)));
   const ufx = await ethers.getContractAt("UFIndexada", d.ufx);
   const ahora = Date.now() / 1000;
   const dias = d.ultimaPublicacion ? Math.max(0, (ahora - d.ultimaPublicacion) / 86400) : 0;
@@ -23,11 +24,13 @@ async function main() {
   for (const [s, dir] of Object.entries(d.activos)) {
     const [tend, vol] = MOVIMIENTO[s] ?? [0, 0.01];
     d.precios[s] *= Math.exp(tend * dias + vol * Math.sqrt(dias) * (Math.random() * 2 - 1) * 1.7);
-    await (await oraculo.fijarPrecio(dir, e18(d.precios[s]))).wait();
+    for (const f of fuentes) await (await f.fijarPrecio(dir, e18(d.precios[s] * (1 + (Math.random() - 0.5) * 0.0004)))).wait();
   }
   d.ipc *= Math.pow(1.03, dias / 365.25);
-  await (await oraculo.fijarPrecio(await ufx.IPC(), e18(d.ipc))).wait();
-  await (await oraculo.fijarPrecio(await ufx.TBILL(), e18(d.tbill))).wait();
+  for (const f of fuentes) {
+    await (await f.fijarPrecio(await ufx.IPC(), e18(d.ipc))).wait();
+    await (await f.fijarPrecio(await ufx.TBILL(), e18(d.tbill))).wait();
+  }
   await (await ufx.mantener()).wait();
 
   d.ultimaPublicacion = ahora;

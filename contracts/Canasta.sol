@@ -15,8 +15,13 @@ contract TokenPrueba is ERC20 {
     function regalar(address a, uint256 m) external { _mint(a, m); } // solo para pruebas
 }
 
+/// Lo único que UFX necesita de un oráculo: el valor de una clave, o revertir si no hay dato confiable.
+interface IOraculo {
+    function precio(address clave) external view returns (uint256);
+}
+
 /// Oráculo: dice cuántos dólares vale cada activo. Rechaza precios viejos.
-contract OraculoPrueba {
+contract OraculoPrueba is IOraculo {
     struct Precio { uint256 usd; uint256 fecha; }
     address public immutable dueno;
     mapping(address => Precio) public precios;
@@ -36,22 +41,31 @@ contract OraculoPrueba {
     }
 }
 
-/// Mercado: compra y vende cualquier activo al precio del oráculo.
+/// Mercado: compra y vende cualquier activo al precio del oráculo, menos una comisión que simula
+/// el costo de ejecución (slippage) de un exchange real.
 contract MercadoPrueba {
-    OraculoPrueba public immutable oraculo;
+    IOraculo public immutable oraculo;
     TokenPrueba public immutable dolar;
+    address public immutable dueno;
+    uint256 public comisionBps; // costo de ejecución simulado (100 = 1%)
 
-    constructor(OraculoPrueba o, TokenPrueba d) { oraculo = o; dolar = d; }
+    constructor(IOraculo o, TokenPrueba d) { oraculo = o; dolar = d; dueno = msg.sender; }
+
+    function fijarComision(uint256 bps) external {
+        require(msg.sender == dueno, "solo dueno");
+        require(bps <= 1000, "comision > 10%");
+        comisionBps = bps;
+    }
 
     function comprar(TokenPrueba activo, uint256 usd) external returns (uint256 cant) {
         dolar.transferFrom(msg.sender, address(this), usd);
-        cant = (usd * 1e18) / oraculo.precio(address(activo));
+        cant = (usd * (10000 - comisionBps) * 1e18) / (10000 * oraculo.precio(address(activo)));
         activo.regalar(msg.sender, cant);
     }
 
     function vender(TokenPrueba activo, uint256 cant) external returns (uint256 usd) {
         activo.transferFrom(msg.sender, address(this), cant);
-        usd = (cant * oraculo.precio(address(activo))) / 1e18;
+        usd = (cant * oraculo.precio(address(activo)) * (10000 - comisionBps)) / (10000 * 1e18);
         dolar.regalar(msg.sender, usd);
     }
 }

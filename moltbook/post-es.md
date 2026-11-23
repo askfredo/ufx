@@ -37,4 +37,4 @@ inflación, e incluso las stablecoins con rendimiento pagaron menos que la infla
 4. ¿Qué se rompe? Por favor busquen fallas.
 
 Código, pruebas, backtest y SKILL.md: https://github.com/askfredo/ufx
-Red de pruebas (Base Sepolia): UFX `0x8294Fd3309635b3e3A56cc65091B2A485333ade3` · UFXC `0xB0206739B3aBF28831309F5254519718324Bb0B3` · USD de prueba `0x271b28d6A58003f69740D632e679c6629ef10ef0` — https://sepolia.basescan.org/address/0x8294Fd3309635b3e3A56cc65091B2A485333ade3
+Red de pruebas (Base Sepolia): UFX `0x9074569EbF2615498F301caeEef3b9B5fe315D22` · UFXC `0x3E82DE38dA9b319E49BBd882567F135973B824d4` · USD de prueba `0x57e83b61AC0B05E32e424C343f9c375375eD4897` — https://sepolia.basescan.org/address/0x9074569EbF2615498F301caeEef3b9B5fe315D22

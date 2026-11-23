@@ -89,7 +89,7 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
 
     TokenPrueba public immutable dolar;
     MercadoPrueba public immutable mercado;
-    OraculoPrueba public immutable oraculo;
+    IOraculo public immutable oraculo; // en la red de prueba: OraculoMediana sobre varias fuentes
     ParteColchon public immutable partes;
 
     TokenPrueba[] public activos;
@@ -146,7 +146,7 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
     constructor(
         TokenPrueba _dolar,
         MercadoPrueba _mercado,
-        OraculoPrueba _oraculo,
+        IOraculo _oraculo,
         TokenPrueba[] memory _activos,
         uint256[] memory _pesos,
         uint256[] memory _pesosDefensivos,
@@ -323,8 +323,7 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
 
     /// Igual que `acunar`, pero las UFX van a `receptor` (útil para agentes y otros contratos).
     function acunarPara(uint256 usd, address receptor) public nonReentrant alDia returns (uint256 nuevas) {
-        nuevas = (usd * 1e18) / precioUnidad();
-        _acunar(usd, nuevas, receptor);
+        nuevas = _acunar(usd, 0, receptor);
     }
 
     /// SALIR: entregas UFX y recibes su valor en dólares. Si una crisis dejó la reserva
@@ -338,11 +337,20 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
         usd = _quemar(msg.sender, cant, receptor, 0);
     }
 
-    function _acunar(uint256 usd, uint256 nuevas, address receptor) internal {
-        require(usd > 0 && nuevas > 0, "monto vacio");
+    /// Recibe `usd`, compra la canasta y crea UFX por el valor que REALMENTE se compró: el costo de ejecución
+    /// (slippage) lo paga quien entra, no los que ya estaban. Con `exactas` > 0 crea exactamente esas UFX
+    /// (si la compra rindió lo suficiente).
+    function _acunar(uint256 usd, uint256 exactas, address receptor) internal returns (uint256 nuevas) {
+        require(usd > 0, "monto vacio");
         require(abiertoDesde != 0, "fase de arranque: se esta armando el colchon");
         IERC20(address(dolar)).safeTransferFrom(msg.sender, address(this), usd);
-        _comprarCanasta(usd);
+        uint256 adquirido = _comprarCanasta(usd);
+        nuevas = (adquirido * 1e18) / precioUnidad();
+        if (exactas > 0) {
+            require(nuevas + TOLERANCIA_REDONDEO >= exactas, "costo de ejecucion: usa deposit");
+            nuevas = exactas;
+        }
+        require(nuevas > 0, "monto vacio");
         _mint(receptor, nuevas);
         require(ratio() >= RATIO_MIN, "respaldo bajo 120%: creacion pausada");
         emit Acunado(msg.sender, receptor, usd, nuevas);
@@ -358,7 +366,7 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
         _burn(dueno, cant);
         usd = _venderCanasta(usd);
         if (usdExacto > 0) {
-            require(usd >= usdExacto, "no alcanza para el retiro exacto");
+            require(usd >= usdExacto, "costo de ejecucion: usa redeem");
             usd = usdExacto;
         }
         IERC20(address(dolar)).safeTransfer(receptor, usd);
@@ -371,6 +379,7 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
     // Así cualquier agregador o framework de agentes que entienda ERC-4626 puede usar UFX sin código especial.
 
     uint256 private constant POLVO_RETIRO = 1000; // margen en wei para que un retiro exacto nunca quede corto por redondeo
+    uint256 private constant TOLERANCIA_REDONDEO = 1e9; // ~1e-9 UFX: redondeo de la compra repartida en varios activos
 
     function asset() external view returns (address) {
         return address(dolar);
@@ -401,9 +410,9 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
         return convertToShares(assets);
     }
 
+    /// `previewDeposit` no puede saber el costo de ejecución: lo recibido puede ser un poco menor.
     function deposit(uint256 assets, address receiver) external nonReentrant alDia returns (uint256 shares) {
-        shares = (assets * 1e18) / precioUnidad();
-        _acunar(assets, shares, receiver);
+        shares = _acunar(assets, 0, receiver);
     }
 
     function maxMint(address receiver) external view returns (uint256) {
@@ -459,18 +468,15 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
     function aportarColchon(uint256 usd) external nonReentrant alDia returns (uint256 nuevas) {
         require(usd > 0, "monto vacio");
         // Después del arranque se paga entrada: se compra la canasta con todo, pero las partes son por el neto.
+        // Las partes se calculan por lo que REALMENTE se compró (el costo de ejecución lo paga quien entra).
         uint256 netoBps = abiertoDesde == 0 ? 10000 : 10000 - cuotaEntradaBps;
         uint256 total = partesColchonTotal();
-        if (total == 0) {
-            nuevas = (usd * netoBps) / 10000;
-        } else {
-            uint256 c = colchon();
-            require(c > 0, "colchon agotado");
-            nuevas = (usd * netoBps * total) / (10000 * c);
-        }
+        uint256 c = colchon();
+        require(total == 0 || c > 0, "colchon agotado");
         desdeColchon[msg.sender] = block.timestamp;
         IERC20(address(dolar)).safeTransferFrom(msg.sender, address(this), usd);
-        _comprarCanasta(usd);
+        uint256 adquirido = _comprarCanasta(usd);
+        nuevas = total == 0 ? (adquirido * netoBps) / 10000 : (adquirido * netoBps * total) / (10000 * c);
         partes.acunar(msg.sender, nuevas);
         emit ColchonAportado(msg.sender, usd, nuevas);
         if (abiertoDesde == 0 && colchon() >= metaArranque) {
@@ -651,10 +657,17 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
         emit Rebalanceado(total);
     }
 
-    function _comprarCanasta(uint256 usd) internal {
+    /// Compra la canasta con `usd` y devuelve el valor (al precio del oráculo) que realmente quedó en la reserva:
+    /// lo comprado más los restos de redondeo que quedan en caja.
+    function _comprarCanasta(uint256 usd) internal returns (uint256 adquirido) {
+        uint256 gastado = 0;
         for (uint256 i = 0; i < activos.length; i++) {
-            mercado.comprar(activos[i], (usd * _peso(i)) / 10000);
+            uint256 monto = (usd * _peso(i)) / 10000;
+            uint256 cant = mercado.comprar(activos[i], monto);
+            adquirido += (cant * oraculo.precio(address(activos[i]))) / 1e18;
+            gastado += monto;
         }
+        adquirido += usd - gastado;
     }
 
     /// Vende una tajada pareja de cada activo para juntar `usd`. Devuelve lo que se juntó.

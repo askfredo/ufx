@@ -37,7 +37,11 @@ async function main() {
   const dolar = await desplegar("TokenPrueba", "USD de prueba", "tUSDC");
   const activos = [];
   for (const [n, s] of canasta) activos.push(await desplegar("TokenPrueba", n, s));
-  const oraculo = await desplegar("OraculoPrueba");
+  // Oráculo sin dueño: mediana de 3 fuentes (mínimo 2 válidas). En la red de prueba las 3 fuentes son
+  // OraculoPrueba publicadas por scripts/publicar-precios.js; en producción serían Chainlink, Pyth, Truflation, etc.
+  const fuentes = [];
+  for (let i = 0; i < 3; i++) fuentes.push(await desplegar("OraculoPrueba"));
+  const oraculo = await desplegar("OraculoMediana", fuentes, 2);
   const mercado = await desplegar("MercadoPrueba", oraculo, dolar);
 
   const ufx = await desplegar("UFIndexada", dolar, mercado, oraculo, activos, canasta.map((c) => c[2]), canasta.map((c) => c[4]), {
@@ -53,9 +57,11 @@ async function main() {
   });
 
 
-  for (let i = 0; i < activos.length; i++) await esperar(oraculo.fijarPrecio(activos[i], e18(canasta[i][3])));
-  await esperar(oraculo.fijarPrecio(await ufx.IPC(), e18(1)));
-  await esperar(oraculo.fijarPrecio(await ufx.TBILL(), e18(0.04)));
+  for (const f of fuentes) {
+    for (let i = 0; i < activos.length; i++) await esperar(f.fijarPrecio(activos[i], e18(canasta[i][3])));
+    await esperar(f.fijarPrecio(await ufx.IPC(), e18(1)));
+    await esperar(f.fijarPrecio(await ufx.TBILL(), e18(0.04)));
+  }
 
   // Se arma el colchón y entra un primer ahorrador.
   await esperar(dolar.regalar(colchon.address, e18(1000)));
@@ -68,6 +74,7 @@ async function main() {
   const direcciones = {
     red: network.name, ufx: await ufx.getAddress(), dolar: await dolar.getAddress(),
     ufxc: await ufx.partes(), oraculo: await oraculo.getAddress(), mercado: await mercado.getAddress(),
+    fuentes: await Promise.all(fuentes.map((f) => f.getAddress())),
     activos: Object.fromEntries(await Promise.all(canasta.map(async (c, i) => [c[1], await activos[i].getAddress()]))),
     precios: Object.fromEntries(canasta.map((c) => [c[1], c[3]])), ipc: 1, tbill: 0.04,
     fundador,

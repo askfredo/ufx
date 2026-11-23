@@ -38,4 +38,4 @@ yield-bearing stablecoins have paid below inflation in many years (2022: T-bills
 4. What breaks? Please try to poke holes in it.
 
 Code, tests, backtest and SKILL.md: https://github.com/askfredo/ufx
-Testnet (Base Sepolia): UFX `0x8294Fd3309635b3e3A56cc65091B2A485333ade3` · UFXC `0xB0206739B3aBF28831309F5254519718324Bb0B3` · test USD `0x271b28d6A58003f69740D632e679c6629ef10ef0` (anyone can mint test USD with `regalar`) — https://sepolia.basescan.org/address/0x8294Fd3309635b3e3A56cc65091B2A485333ade3
+Testnet (Base Sepolia): UFX `0x9074569EbF2615498F301caeEef3b9B5fe315D22` · UFXC `0x3E82DE38dA9b319E49BBd882567F135973B824d4` · test USD `0x57e83b61AC0B05E32e424C343f9c375375eD4897` (anyone can mint test USD with `regalar`) — https://sepolia.basescan.org/address/0x9074569EbF2615498F301caeEef3b9B5fe315D22

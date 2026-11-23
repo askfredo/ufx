@@ -24,7 +24,9 @@ Una regla clara, sin KYC ni intermediarios: algo que un agente puede programar y
 8. **El colchón es un token (UFXC):** se puede transferir y vender en un exchange. Las partes llevan su antigüedad, así que la multa no se esquiva pasándolas a otra dirección.
 9. **Cortacircuito del IPC:** si el dato de inflación falta, está viejo o salta más de +2% / -1% en un mes, se ignora y UFX sigue con la pata de T-bills. El contrato nunca se traba por el oráculo de inflación.
 10. **Modo defensivo:** con el respaldo bajo 130%, la canasta pasa a pesos defensivos (más bonos y oro) hasta que se recupera a 140%. En el peor caso (lanzar en dic-2007) sube el respaldo mínimo de 87% a 103%.
-11. **Se mantiene solo:** cualquier bot puede llamar `mantener()` una vez al día (actualiza el precio, rebalancea cuando toca) y cobra una propina en UFXC.
+11. **Oráculo sin dueño:** precios, IPC y tasa de T-bills salen de la mediana de varias fuentes independientes (3 en la red de prueba, mínimo 2 válidas). Una fuente equivocada o manipulada no mueve el resultado.
+12. **El costo de ejecución lo paga quien opera:** quien entra recibe UFX por lo que realmente se compró y quien sale recibe lo que realmente se vendió. El slippage nunca diluye a los que se quedan.
+13. **Se mantiene solo:** cualquier bot puede llamar `mantener()` una vez al día (actualiza el precio, rebalancea cuando toca) y cobra una propina en UFXC.
 
 ## Para agentes
 
@@ -46,9 +48,10 @@ que cobra en USDC, deja dos semanas de gastos en caja y guarda el resto en UFX.
 ```
 contracts/
   UFIndexada.sol      UFX (precio indexado, colchón, arranque, comisión, mantención) + ParteColchon (token UFXC)
+  OraculoMediana.sol  Oráculo sin dueño: mediana de varias fuentes, mínimo de fuentes válidas
   Canasta.sol         Piezas de prueba (TokenPrueba, OraculoPrueba, MercadoPrueba) y la v1 MonedaCanasta
 test/
-  UFIndexada.test.js  47 pruebas, incluida una al azar de 400 operaciones
+  UFIndexada.test.js  54 pruebas, incluida una al azar de 400 operaciones
 scripts/
   desplegar-local.js  Despliega todo con tokens de mentira en un nodo local
   agente-demo.js      Un agente de IA manejando su tesorería con UFX + un bot de mantención
@@ -105,7 +108,7 @@ oro = GC=F, inmuebles = IYR, energía = CL=F, materias primas = S&P GSCI, bitcoi
 ## Lo que falta antes de usarlo con plata real
 
 - Adaptadores reales (Uniswap/Curve, ERC-4626) en vez de `MercadoPrueba`, que acuña tokens gratis.
-- Oráculos externos (Chainlink, inflación on-chain) en vez de `OraculoPrueba`, que tiene dueño.
+- Fuentes reales para `OraculoMediana` (Chainlink, Pyth, Truflation) en vez de `OraculoPrueba`, que tiene dueño.
 - Entradas y salidas en lote diario (ERC-7540) para evitar aprovechar precios atrasados y reducir costos.
 - Pruebas con tokens reales en un fork de Ethereum, red de pruebas pública y auditoría externa.
 
@@ -129,7 +132,8 @@ frecuentes con respuestas.
 
 ## Historial de despliegues (Base Sepolia)
 
-- **v5** (actual): precio con dos patas acumuladas (sin trinquete estacional) e IPC NSA con la regla de los TIPS (comentarios de marxsignal y lilibot en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v6** (actual): oráculo por mediana sin dueño y costo de ejecución a cargo de quien opera (ideas de aletheiaseeker en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v5**: precio con dos patas acumuladas (sin trinquete estacional) e IPC NSA con la regla de los TIPS (comentarios de marxsignal y lilibot en Moltbook). Direcciones en `deployments/baseSepolia-v5.json`.
 - **v4**: interfaz estándar ERC-4626 (pregunta de adopción de cicadafinanceintern en Moltbook). Direcciones en `deployments/baseSepolia-v4.json`.
 - **v3**: `reservaDetalle()` para verificar todo el respaldo en una lectura (idea de muse_scanner en Moltbook). Direcciones en `deployments/baseSepolia-v3.json`.
 - **v2**: cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia-v2.json`.

@@ -32,9 +32,9 @@ Chain ID 84532 · RPC `https://sepolia.base.org` · explorer `https://sepolia.ba
 
 | Contract | Address |
 |---|---|
-| UFX (`UFIndexada`) | `0x8294Fd3309635b3e3A56cc65091B2A485333ade3` |
-| UFXC (risk pool token) | `0xB0206739B3aBF28831309F5254519718324Bb0B3` |
-| Test USD (`tUSDC`) | `0x271b28d6A58003f69740D632e679c6629ef10ef0` |
+| UFX (`UFIndexada`) | `0x9074569EbF2615498F301caeEef3b9B5fe315D22` |
+| UFXC (risk pool token) | `0x3E82DE38dA9b319E49BBd882567F135973B824d4` |
+| Test USD (`tUSDC`) | `0x57e83b61AC0B05E32e424C343f9c375375eD4897` |
 
 Test USD can be minted freely for testing: `tUSDC.regalar(yourAddress, amount)`.
 
@@ -94,9 +94,15 @@ pays a small tip in UFXC to the caller.
   it is ignored and UFX keeps growing on the T-bill leg. Check `UFX.ipcAceptado()`.
 - **Defensive mode:** if backing falls below 130%, the basket shifts to defensive weights (65% bonds, 30% gold,
   5% stocks) until backing recovers to 140%. Check `UFX.modoDefensivo()`. UFX holders are unaffected either way.
+- **Oracle without an owner:** UFX reads prices, CPI and the T-bill rate from `OraculoMediana`, the **median of
+  several independent sources** (3 on testnet, at least 2 must be valid). One wrong or manipulated source doesn't
+  move the result, stale sources are ignored, and the source list is fixed at deployment.
+- **Execution cost is paid by whoever trades:** deposits are credited for the value actually bought, redemptions
+  pay what the sale actually raised. Slippage never dilutes the holders who stay. Under slippage an exact
+  `withdraw` may revert ("use redeem"); `redeem` always works.
 - Contracts have no admin keys over funds; parameters are fixed at deployment.
 
 ## Source and data
 
-Code, tests (47 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
+Code, tests (54 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
 prices are in the repository. Backtest results are simulations, not guarantees.
