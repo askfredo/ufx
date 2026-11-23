@@ -16,7 +16,7 @@ Una regla clara, sin KYC ni intermediarios: algo que un agente puede programar y
 
 1. **Arranque:** primero se arma el colchón. UFX se abre cuando llega a `metaArranque`.
 2. **Entrar:** los dólares compran la canasta y se crean UFX al precio del día.
-3. **Precio:** sube solo con la inflación más la tasa fija, o con la tasa de los T-bills más el margen, lo que sea mayor. Se va acumulando y nunca baja.
+3. **Precio:** se llevan dos índices acumulados por separado desde el inicio, inflación + 2% y T-bills + 0,5%, y el precio es el mayor de los dos (nunca baja). Comparar índices acumulados, y no mes a mes, evita pagar de más por las bajas estacionales del IPC. IPC: CPI-U sin ajuste estacional (CPIAUCNS), primera publicación, un mes de rezago (regla de los TIPS).
 4. **Canasta:** sube y baja; la diferencia la absorbe el colchón. Se rebalancea a los pesos objetivo.
 5. **Salir:** se quema UFX y se recibe su valor en dólares. Si una crisis deja la reserva bajo la deuda, todos salen con el mismo descuento.
 6. **Seguridad:** solo se crean UFX si el respaldo queda ≥ 120%; el colchón no puede retirarse si lo deja bajo 120%.
@@ -48,7 +48,7 @@ contracts/
   UFIndexada.sol      UFX (precio indexado, colchón, arranque, comisión, mantención) + ParteColchon (token UFXC)
   Canasta.sol         Piezas de prueba (TokenPrueba, OraculoPrueba, MercadoPrueba) y la v1 MonedaCanasta
 test/
-  UFIndexada.test.js  45 pruebas, incluida una al azar de 400 operaciones
+  UFIndexada.test.js  47 pruebas, incluida una al azar de 400 operaciones
 scripts/
   desplegar-local.js  Despliega todo con tokens de mentira en un nodo local
   agente-demo.js      Un agente de IA manejando su tesorería con UFX + un bot de mantención
@@ -93,12 +93,12 @@ Para los datos: `python3 -m venv .venv && .venv/bin/pip install yfinance pandas`
 | `DEFENSIVO` | respaldo (%) bajo el cual se usan pesos defensivos (0 = apagado) | 130 |
 
 Los datos mensuales usan aproximaciones (con dividendos): acciones globales = 60% SPY + 40% EFA, bonos = AGG,
-oro = GC=F, inmuebles = IYR, energía = CL=F, materias primas = S&P GSCI, bitcoin = BTC-USD, IPC = CPIAUCSL
+oro = GC=F, inmuebles = IYR, energía = CL=F, materias primas = S&P GSCI, bitcoin = BTC-USD, IPC = CPIAUCNS
 (con un mes de rezago, como la UF; oct-2025 interpolado), T-bills = TB3MS. El backtest no incluye comisiones ni slippage.
 
 ## Resultados (simulados)
 
-- **Backtest 2004–2026:** el ahorrador gana +2,6% real/año (5,3% nominal) contra 1,8% nominal de una stablecoin con rendimiento; el colchón gana ~7% real/año; respaldo mínimo 114% (feb-2009).
+- **Backtest 2004–2026 (IPC NSA, dos patas):** el ahorrador gana ~4,8% nominal (+2,0% real, justo inflación + 2%) contra 1,8% nominal de una stablecoin con T-bills; el colchón gana ~9,5% real/año; respaldo mínimo 121% (oct-2008).
 - **Peor caso** (lanzar en dic-2007): sin modo defensivo el respaldo baja a 87% durante 7 meses; con modo defensivo el mínimo es 103% y nunca baja de 100%.
 - **2022–2026 contra productos reales:** ver `datos/comparacion-rendimientos.csv`.
 
@@ -129,7 +129,8 @@ frecuentes con respuestas.
 
 ## Historial de despliegues (Base Sepolia)
 
-- **v4** (actual): interfaz estándar ERC-4626 (pregunta de adopción de cicadafinanceintern en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v5** (actual): precio con dos patas acumuladas (sin trinquete estacional) e IPC NSA con la regla de los TIPS (comentarios de marxsignal y lilibot en Moltbook). Direcciones en `deployments/baseSepolia.json`.
+- **v4**: interfaz estándar ERC-4626 (pregunta de adopción de cicadafinanceintern en Moltbook). Direcciones en `deployments/baseSepolia-v4.json`.
 - **v3**: `reservaDetalle()` para verificar todo el respaldo en una lectura (idea de muse_scanner en Moltbook). Direcciones en `deployments/baseSepolia-v3.json`.
 - **v2**: cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia-v2.json`.
 - **v1**: primera versión. Direcciones en `deployments/baseSepolia-v1.json` (ya no se publican precios; quedó detenida).

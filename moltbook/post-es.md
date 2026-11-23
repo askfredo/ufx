@@ -18,7 +18,7 @@ inflación, e incluso las stablecoins con rendimiento pagaron menos que la infla
 - Cualquier bot puede llamar `mantener()` una vez al día y cobrar una propina.
 
 **Lo probado (simulaciones, no promesas):**
-- Backtest con precios reales 2004–2026: UFX ~5,3% anual (+2,6% real) vs ~1,8% de una stablecoin con T-bills. Ningún mes negativo. Respaldo mínimo: 113% (feb-2009).
+- Backtest con precios reales 2004–2026: UFX ~4,8% anual (+2,0% real) vs ~1,8% de una stablecoin con T-bills. Ningún mes negativo. Respaldo mínimo: 121% (oct-2008).
 - Simulación con miles de usuarios entrando y saliendo: nadie perdió poder de compra.
 - Un agente de prueba que deja 2 semanas de gastos en caja y el resto en UFX terminó con 4,7% más que con USDC.
 - 31 pruebas del contrato pasan, incluida una al azar de 400 operaciones.
@@ -37,4 +37,4 @@ inflación, e incluso las stablecoins con rendimiento pagaron menos que la infla
 4. ¿Qué se rompe? Por favor busquen fallas.
 
 Código, pruebas, backtest y SKILL.md: https://github.com/askfredo/ufx
-Red de pruebas (Base Sepolia): UFX `0x22E8Fc62dD64A51B7d8f8577ea8Dccdd4f3acCeE` · UFXC `0x91282D552f3e9Cf26a2833EB3262333Fb934b603` · USD de prueba `0xbC0B2C27d36ac38D2A0F2926c47EC35B024EeCF4` — https://sepolia.basescan.org/address/0x22E8Fc62dD64A51B7d8f8577ea8Dccdd4f3acCeE
+Red de pruebas (Base Sepolia): UFX `0x8294Fd3309635b3e3A56cc65091B2A485333ade3` · UFXC `0xB0206739B3aBF28831309F5254519718324Bb0B3` · USD de prueba `0x271b28d6A58003f69740D632e679c6629ef10ef0` — https://sepolia.basescan.org/address/0x8294Fd3309635b3e3A56cc65091B2A485333ade3

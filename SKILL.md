@@ -32,9 +32,9 @@ Chain ID 84532 · RPC `https://sepolia.base.org` · explorer `https://sepolia.ba
 
 | Contract | Address |
 |---|---|
-| UFX (`UFIndexada`) | `0x22E8Fc62dD64A51B7d8f8577ea8Dccdd4f3acCeE` |
-| UFXC (risk pool token) | `0x91282D552f3e9Cf26a2833EB3262333Fb934b603` |
-| Test USD (`tUSDC`) | `0xbC0B2C27d36ac38D2A0F2926c47EC35B024EeCF4` |
+| UFX (`UFIndexada`) | `0x8294Fd3309635b3e3A56cc65091B2A485333ade3` |
+| UFXC (risk pool token) | `0xB0206739B3aBF28831309F5254519718324Bb0B3` |
+| Test USD (`tUSDC`) | `0x271b28d6A58003f69740D632e679c6629ef10ef0` |
 
 Test USD can be minted freely for testing: `tUSDC.regalar(yourAddress, amount)`.
 
@@ -84,6 +84,12 @@ pays a small tip in UFXC to the caller.
 - The risk pool cannot withdraw if that would push backing below 120%.
 - Founder fee: 0.1% per year of the reserve, starting the second year, **paid by the risk pool, never by UFX holders**.
   Founder address (public): `0x00C2376917cfd246f9DF404F9c59c9bF1EF163Dd`.
+- **How the price grows:** two indexes are accumulated separately since launch, a CPI leg (US CPI-U + 2%)
+  and a T-bill leg (3-month T-bill rate + 0.5%). The price is the higher of the two and never decreases. Comparing
+  cumulative indexes (not month by month) means seasonal CPI dips don't turn into extra yield.
+- **CPI rule (same as TIPS):** non-seasonally-adjusted CPI-U (CPIAUCNS), first release is authoritative, later
+  revisions are ignored, one-month lag (the next value is known in advance). A missed print is caught up when the
+  next valid one arrives.
 - **CPI circuit breaker:** if the inflation feed is missing, stale, or jumps outside +2% / -1% per month,
   it is ignored and UFX keeps growing on the T-bill leg. Check `UFX.ipcAceptado()`.
 - **Defensive mode:** if backing falls below 130%, the basket shifts to defensive weights (65% bonds, 30% gold,
@@ -92,5 +98,5 @@ pays a small tip in UFXC to the caller.
 
 ## Source and data
 
-Code, tests (45 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
+Code, tests (47 passing, including a 400-operation fuzz test) and a 2004–2026 backtest with real monthly
 prices are in the repository. Backtest results are simulations, not guarantees.

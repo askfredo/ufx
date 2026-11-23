@@ -1,7 +1,7 @@
 # Arma datos/historico.csv: índices base 100 en dic-2003 para cada parte de la canasta + IPC (base 1).
 # Proxies (con dividendos): acciones globales = 60% SPY + 40% EFA (rebalanceo mensual), bonos = AGG,
 # oro = GC=F, inmuebles = IYR, energía = CL=F (WTI), materias primas = S&P GSCI, bitcoin = BTC-USD.
-# IPC = CPIAUCSL de EE.UU. con un mes de rezago, igual que la UF usa el IPC del mes anterior.
+# IPC = CPIAUCNS (CPI-U sin ajuste estacional, la serie de los TIPS: casi no se revisa) con un mes de rezago, como la UF.
 import pandas as pd
 m = pd.read_csv("datos/mensual_raw.csv", index_col=0, parse_dates=True).loc["2003-12-31":]
 r = m.pct_change()

@@ -10,10 +10,12 @@ import "./Canasta.sol"; // TokenPrueba, OraculoPrueba, MercadoPrueba
 
 // ════════════════════════════════════════════════════════════════════
 //  UFX: "UF Global", una unidad de ahorro para personas y agentes de IA.
-//  - 1 UFX = $1 al comienzo. Su precio sube lo que sea MAYOR entre
-//        inflación + tasa fija   (como un depósito en "UF + x%")
-//        T-bills + margen        (para ganarle siempre a las stablecoins)
-//    y nunca baja. UFX es un ERC-20 normal: se transfiere barato y sin sorpresas.
+//  - 1 UFX = $1 al comienzo. Se llevan DOS índices acumulados por separado desde el inicio:
+//        pata IPC:     inflación + tasa fija   (como un depósito en "UF + x%")
+//        pata T-bills: T-bills + margen        (para ganarle siempre a las stablecoins)
+//    El precio es el mayor de los dos, y nunca baja. Comparar índices acumulados (y no mes a mes)
+//    evita el "trinquete": las bajas estacionales del IPC no se convierten en ganancia extra.
+//    IPC: CPI-U sin ajuste estacional (como los TIPS), primera publicación, con un mes de rezago. UFX es un ERC-20 normal: se transfiere barato y sin sorpresas.
 //  - Respaldo: una canasta de activos reales, rebalanceada automáticamente.
 //  - COLCHÓN (token UFXC): absorbe las subidas y bajadas de la canasta y se queda con
 //    todo lo que sobra por sobre lo que se debe a UFX. Es transable: cualquiera puede
@@ -117,6 +119,8 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
     uint256 public precioGuardado = 1e18;
     uint256 public ipcGuardado;
     uint256 public tGuardado;
+    uint256 public pataIpc = 1e18;    // índice acumulado: inflación + tasa fija
+    uint256 public pataTbill = 1e18;  // índice acumulado: T-bills + margen
     uint256 public tIpcCambio;   // cuándo cambió por última vez el IPC aceptado
     uint256 public tbillGuardado; // última tasa de T-bills válida
 
@@ -191,13 +195,13 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
     // ─────────────────────────── lecturas ───────────────────────────
 
     /// Dólares que vale 1 UFX. Parte en $1 y nunca baja.
-    function precioUnidad() public view returns (uint256 p) {
-        (p, , , ) = _precioAhora();
+    function precioUnidad() public view returns (uint256) {
+        return _calcular().precio;
     }
 
     /// Si hoy el dato de inflación se está usando (true) o el cortacircuito lo descarta (false).
-    function ipcAceptado() external view returns (bool aceptado) {
-        (, , , aceptado) = _precioAhora();
+    function ipcAceptado() external view returns (bool) {
+        return _calcular().ipcOk;
     }
 
     /// Dólares que valen las UFX de `a` hoy.
@@ -301,7 +305,8 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
         for (uint256 i = 0; i < activos.length; i++) {
             if (r.total > 0) r.activos[i].pesoActualBps = (r.activos[i].valor * 10000) / r.total;
         }
-        (r.precioUFX, , , r.ipcAceptado) = _precioAhora();
+        Calculo memory c = _calcular();
+        (r.precioUFX, r.ipcAceptado) = (c.precio, c.ipcOk);
         r.ufxEnCirculacion = totalSupply();
         r.deuda = (r.ufxEnCirculacion * r.precioUFX) / 1e18;
         r.colchon = r.total > r.deuda ? r.total - r.deuda : 0;
@@ -545,40 +550,46 @@ contract UFIndexada is ERC20, ReentrancyGuard, IERC4626 {
         return ipc <= ipcGuardado + subida && ipc + bajada >= ipcGuardado;
     }
 
-    /// Precio guardado × lo que haya que sumarle desde la última actualización.
-    /// Sube lo mayor entre la pata de inflación (si el IPC es confiable) y la de T-bills.
-    function _precioAhora() internal view returns (uint256 p, uint256 ipcUsado, uint256 tbillUsado, bool ipcOk) {
+    struct Calculo {
+        uint256 precio;
+        uint256 ipcUsado;
+        uint256 tbillUsado;
+        bool ipcOk;
+        uint256 pataIpc;
+        uint256 pataTbill;
+    }
+
+    /// Avanza las dos patas desde la última actualización y toma la mayor (sin bajar nunca).
+    function _calcular() internal view returns (Calculo memory c) {
         (bool hayIpc, uint256 ipc) = _leer(IPC);
         (bool hayTbill, uint256 tbill) = _leer(TBILL);
-        tbillUsado = hayTbill ? tbill : tbillGuardado;
+        c.tbillUsado = hayTbill ? tbill : tbillGuardado;
         if (tGuardado == 0) {
             require(hayIpc, "sin IPC inicial");
-            return (precioGuardado, ipc, tbillUsado, true);
+            return Calculo(precioGuardado, ipc, c.tbillUsado, true, pataIpc, pataTbill);
         }
         uint256 dt = block.timestamp - tGuardado;
-        uint256 crecer = 1e18; // sin IPC confiable, la pata de inflación no suma nada
-        ipcUsado = ipcGuardado;
-        ipcOk = hayIpc && _ipcRazonable(ipc);
-        if (ipcOk) {
-            crecer = (ipc * (1e18 + (tasaFijaBps * 1e14 * dt) / DURACION_ANIO)) / ipcGuardado;
-            ipcUsado = ipc;
-        }
-        if (pisoStable) {
-            uint256 porStable = 1e18 + ((tbillUsado + margenBps * 1e14) * dt) / DURACION_ANIO;
-            if (porStable > crecer) crecer = porStable;
-        }
-        if (crecer < 1e18) crecer = 1e18; // nunca baja
-        p = (precioGuardado * crecer) / 1e18;
+        c.ipcOk = hayIpc && _ipcRazonable(ipc);
+        c.ipcUsado = c.ipcOk ? ipc : ipcGuardado; // sin dato confiable, la inflación espera y se pone al día después
+        uint256 real = 1e18 + (tasaFijaBps * 1e14 * dt) / DURACION_ANIO;
+        c.pataIpc = (((pataIpc * c.ipcUsado) / ipcGuardado) * real) / 1e18;
+        c.pataTbill = pisoStable
+            ? (pataTbill * (1e18 + ((c.tbillUsado + margenBps * 1e14) * dt) / DURACION_ANIO)) / 1e18
+            : 0;
+        c.precio = precioGuardado;
+        if (c.pataIpc > c.precio) c.precio = c.pataIpc;
+        if (c.pataTbill > c.precio) c.precio = c.pataTbill;
     }
 
     function _actualizarPrecio() internal {
-        (uint256 p, uint256 ipcUsado, uint256 tbillUsado, bool ipcOk) = _precioAhora();
-        if (!ipcOk && tGuardado != 0) {
+        Calculo memory c = _calcular();
+        if (!c.ipcOk && tGuardado != 0) {
             (bool hayIpc, uint256 ipc) = _leer(IPC);
             emit IPCIgnorado(ipc, !hayIpc);
         }
-        if (ipcUsado != ipcGuardado) tIpcCambio = block.timestamp;
-        (precioGuardado, ipcGuardado, tbillGuardado, tGuardado) = (p, ipcUsado, tbillUsado, block.timestamp);
+        if (c.ipcUsado != ipcGuardado) tIpcCambio = block.timestamp;
+        (precioGuardado, ipcGuardado, tbillGuardado, tGuardado) = (c.precio, c.ipcUsado, c.tbillUsado, block.timestamp);
+        (pataIpc, pataTbill) = (c.pataIpc, c.pataTbill);
     }
 
     /// Entra al modo defensivo bajo el umbral y sale 10 puntos más arriba. Devuelve true si cambió.

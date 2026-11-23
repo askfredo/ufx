@@ -7,13 +7,13 @@ diferencia en los años malos y se queda con el excedente en los buenos. No se p
 de los nuevos: todo es público en el contrato.
 
 **¿Qué pasa en una crisis como 2008?**
-El fondo de riesgo absorbe la caída. En el backtest 2004–2026 el respaldo mínimo fue 113% y nadie perdió.
+El fondo de riesgo absorbe la caída. En el backtest 2004–2026 el respaldo mínimo fue 121% y nadie perdió.
 Si una crisis agotara el fondo de riesgo (respaldo < 100%), los retiros tienen un descuento igual para
 todos. Eso habría pasado lanzando con poco fondo de riesgo justo antes de 2008 (~87% durante 7 meses);
 con 80% de fondo de riesgo inicial no pasa.
 
 **¿Por qué no usar sUSDS o USDY?**
-Son buenos, pero pagan la tasa de los T-bills, que muchos años fue menor que la inflación (2009–2021 casi 0%,
+Son buenos, pero pagan la tasa de los T-bills, que muchos años fue menor que la inflación (2009–2015 y 2020–2021 casi 0%,
 2022 1,7% con 7% de inflación). UFX promete al menos lo mismo + 0,5%, y además inflación + 2%.
 
 **¿Quién publica la inflación?**

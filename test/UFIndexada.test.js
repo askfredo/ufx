@@ -459,6 +459,29 @@ describe("UFX", function () {
       expect(num(await ufx.precioUnidad())).to.be.greaterThan(1);
     });
 
+    it("sin trinquete: si el IPC sube y baja por estacionalidad, UFX paga solo inflación neta + 2%", async function () {
+      const { ufx, avanzar } = await loadFixture(abierto);
+      for (let m = 0; m < 12; m++) {
+        await avanzar(ANIO / 12, { ipc: m % 2 === 0 ? 1.008 : 1.0, tbill: 0 }); // +0,8% y vuelve, cada mes
+        await ufx.mantener();
+      }
+      // inflación neta del año = 0: el precio queda en el último pico (~1,008 × 1,018 ≈ 1,027) porque nunca baja,
+      // pero no acumula cada subida como la regla mes a mes (que habría dado ~1,07)
+      const p = num(await ufx.precioUnidad());
+      expect(p).to.be.closeTo(1.008 * (1 + 0.02 * 11 / 12), 0.002);
+      expect(p).to.be.lessThan(1.03);
+    });
+
+    it("cuando el IPC vuelve tras un dato rechazado, la inflación se pone al día", async function () {
+      const { ufx, avanzar } = await loadFixture(abierto);
+      await avanzar(ANIO / 2, { ipc: 1.20, tbill: 0 }); // +20% en medio año (el máximo aceptado es ~+12%): rechazado
+      await ufx.mantener();
+      expect(await ufx.ipcAceptado()).to.equal(false);
+      await avanzar(ANIO / 2, { ipc: 1.03, tbill: 0 }); // dato normal del año completo
+      await ufx.mantener();
+      expect(num(await ufx.precioUnidad())).to.be.closeTo(1.03 * 1.02, 0.002);
+    });
+
     it("la deflación fuerte no hace bajar el precio", async function () {
       const { ufx, avanzar } = await loadFixture(abierto);
       const antes = num(await ufx.precioUnidad());

@@ -1,0 +1,23 @@
+{
+  "red": "baseSepolia",
+  "ufx": "0x22E8Fc62dD64A51B7d8f8577ea8Dccdd4f3acCeE",
+  "dolar": "0xbC0B2C27d36ac38D2A0F2926c47EC35B024EeCF4",
+  "ufxc": "0x91282D552f3e9Cf26a2833EB3262333Fb934b603",
+  "oraculo": "0x8C0cF25B1183BD712a7bB76258F107D4268fE6ed",
+  "mercado": "0x78A236e0D313B10048816011F8Af779ae56C90ce",
+  "activos": {
+    "tBONO": "0x25384037Da489aEc34e638255C6E1Bf1C93Dc2ce",
+    "tSPY": "0xf181BE1eD1Ba30aA7D29945f36e6E77660B0b602",
+    "tORO": "0xB07D43df54DA020f87A4C9494cFBAF94B76628e2",
+    "tBTC": "0xF65C93f7800558856324698DA64A4EEa7905c92C"
+  },
+  "precios": {
+    "tBONO": 100,
+    "tSPY": 100,
+    "tORO": 100,
+    "tBTC": 100
+  },
+  "ipc": 1,
+  "tbill": 0.04,
+  "fundador": "0x00C2376917cfd246f9DF404F9c59c9bF1EF163Dd"
+}

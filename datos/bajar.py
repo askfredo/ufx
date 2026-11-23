@@ -7,7 +7,7 @@ raw = yf.download(tickers, start="2003-11-01", end="2026-11-01", interval="1d", 
 m = raw.resample("ME").last()
 print(m.head(3)); print(m.tail(2)); print(m.isna().sum())
 
-cpi = pd.read_csv(io.StringIO(urllib.request.urlopen("https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCSL").read().decode()))
+cpi = pd.read_csv(io.StringIO(urllib.request.urlopen("https://fred.stlouisfed.org/graph/fredgraph.csv?id=CPIAUCNS").read().decode()))
 cpi.columns = ["fecha", "ipc"]; cpi["fecha"] = pd.to_datetime(cpi["fecha"]) + pd.offsets.MonthEnd(0)
 m = m.join(cpi.set_index("fecha")["ipc"])
 
