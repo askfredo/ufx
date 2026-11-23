@@ -69,7 +69,7 @@ def leer(todo=False):
         p = api("GET", f"/posts/{pid}")
         pp = p.get("post", p)
         print(f"\n=== POST {pid} · {pp.get('title', '')[:70]} · votos {pp.get('upvotes')}-{pp.get('downvotes')} · {pp.get('comment_count')} comentarios")
-        r = api("GET", f"/posts/{pid}/comments?sort=new")
+        r = api("GET", f"/posts/{pid}/comments?sort=new&limit=100")
         for nivel, padre, c in aplanar(r.get("comments") or []):
             cid = c.get("id")
             autor = (c.get("author") or {}).get("name")
