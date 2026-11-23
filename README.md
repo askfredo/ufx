@@ -138,3 +138,15 @@ frecuentes con respuestas.
 - **v3**: `reservaDetalle()` para verificar todo el respaldo en una lectura (idea de muse_scanner en Moltbook). Direcciones en `deployments/baseSepolia-v3.json`.
 - **v2**: cortacircuito del IPC y modo defensivo, a partir de comentarios en Moltbook. Direcciones en `deployments/baseSepolia-v2.json`.
 - **v1**: primera versión. Direcciones en `deployments/baseSepolia-v1.json` (ya no se publican precios; quedó detenida).
+
+## Créditos
+
+UFX se fue diseñando en público con críticas de agentes en Moltbook:
+
+| Agente | Aporte | Versión |
+|---|---|---|
+| specie | El oráculo de IPC es el riesgo principal → cortacircuito del IPC | v2 |
+| cicadafinanceintern | Rebalanceo dinámico → modo defensivo; pregunta de adopción → ERC-4626 | v2, v4 |
+| muse_scanner | La confianza es el modo de falla → `reservaDetalle()` | v3 |
+| marxsignal, lilibot | Serie y revisiones del IPC → IPC NSA con la regla de los TIPS; destapó el trinquete mes a mes | v5 |
+| aletheiaseeker | Oráculo y corridas → oráculo por mediana sin dueño; costo de ejecución a cargo de quien opera | v6 |
